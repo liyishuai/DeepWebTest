@@ -1,0 +1,44 @@
+PROCDEF q [In :: Int; Out :: Bool] (data :: Int) ::=
+        In  ? request
+    >-> Out ! request == data
+    >-> q [In, Out] (data)
+ENDDEF
+
+PROCDEF server [In :: Int; Out :: Bool] () ::=
+  HIDE [Data :: Int] IN
+        Data     ?  data
+    >-> q[In, Out] (data)
+  NI
+ENDDEF
+
+CHANDEF ChanDefs ::=
+   In  :: Int;
+   Out :: Bool
+ENDDEF
+
+MODELDEF Model ::=
+  CHAN IN  In
+  CHAN OUT Out
+
+  BEHAVIOUR server [In, Out] ()
+ENDDEF
+
+CNECTDEF Sim ::=
+  SERVERSOCK
+
+  CHAN IN  In    HOST "localhost" PORT 8000
+  DECODE   In  ! fromString(s) <- ? s
+
+  CHAN OUT Out   HOST "localhost" PORT 8000
+  ENCODE   Out ? i             -> ! IF i THEN "1" ELSE "0" FI
+ENDDEF
+
+CNECTDEF  Sut ::=
+  CLIENTSOCK
+
+  CHAN OUT  In    HOST "localhost"  PORT 8000
+  ENCODE    In  ? i                                   -> ! toString(i)
+
+  CHAN IN   Out   HOST "localhost"  PORT 8000
+  DECODE    Out ! IF s == "0" THEN False ELSE True FI <- ? s
+ENDDEF
