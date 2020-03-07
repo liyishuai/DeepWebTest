@@ -4,10 +4,25 @@ PROCDEF q [In :: Int; Out :: Bool] (data :: Int) ::=
     >-> q [In, Out] (data)
 ENDDEF
 
+PROCDEF rand [Data :: Int] () ::=
+        Data ! 0
+     ## Data ! 1
+     ## Data ! 2
+     ## Data ! 3
+     ## Data ! 4
+     ## Data ! 5
+     ## Data ! 6
+     ## Data ! 7
+     ## Data ! 8
+     ## Data ! 9
+ENDDEF
+
 PROCDEF server [In :: Int; Out :: Bool] () ::=
   HIDE [Data :: Int] IN
         Data     ?  data
     >-> q[In, Out] (data)
+  |[Data]|
+        rand [Data] ()
   NI
 ENDDEF
 
