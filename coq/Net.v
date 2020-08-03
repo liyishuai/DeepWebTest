@@ -3,8 +3,12 @@ From Ceres Require Import
 
 Notation connT    := nat.
 Notation messageT := sexp.
+Record packetT := Packet {
+  packet__src     : connT;
+  packet__dst     : connT;
+  packet__payload : messageT }.
 
 Variant netE : Type -> Set :=
   Net__Select : netE (list connT)
-| Net__Recv   : connT -> netE messageT
-| Net__Send   : connT -> messageT -> netE unit.
+| Net__Recv   : connT -> netE packetT
+| Net__Send   : packetT -> netE unit.
