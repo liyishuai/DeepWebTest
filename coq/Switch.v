@@ -1,22 +1,11 @@
-From Coq Require Import
-     Nat
-     List.
 From ExtLib Require Import
      Extras
-     Functor
-     Monad.
-From ITree Require Import
-     Nondeterminism
-     ITree.
+     Functor.
 From DeepWeb Require Import
-     Net.
+     Common.
 Import
   FunNotation
-  FunctorNotation
-  ListNotations
-  MonadNotation.
-Open Scope bool_scope.
-Open Scope monad_scope.
+  FunctorNotation.
 
 Definition udp {E} `{nondetE -< E} `{netE -< E} : itree E void :=
   (rec-fix loop in_pkt0 :=
@@ -26,12 +15,7 @@ Definition udp {E} `{nondetE -< E} `{netE -< E} : itree E void :=
                   pkt <- embed Net__Recv conn;;
                   cons pkt <$> in_pkt)
                conns (ret in_pkt0);;
-     '(in_pkt2, out_pkt2) <- fold_left
-                               (fun i_o pkt =>
-                                  '(in_pkt, out_pkt) <- i_o;;
-                                  or (ret (pkt :: in_pkt, out_pkt))
-                                     (ret (in_pkt, pkt :: out_pkt)))
-                               in_pkt1 (ret ([], []));;
+     '(in_pkt2, out_pkt2) <- sublist in_pkt1;;
      fold_left (fun _ pkt => trigger (Net__Send pkt)) out_pkt2 (ret tt);;
      call in_pkt2) [].
 

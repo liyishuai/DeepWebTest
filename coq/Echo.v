@@ -1,17 +1,9 @@
-From Coq Require Import
-     List.
 From ExtLib Require Import
-     Extras
-     Monad.
-From ITree Require Import
-     ITree.
+     Extras.
 From DeepWeb Require Import
-     Net.
+     Common.
 Import
-  FunNotation
-  ListNotations
-  MonadNotation.
-Open Scope monad_scope.
+  FunNotation.
 
 Definition echo : itree netE void :=
   (rec-fix loop _ :=

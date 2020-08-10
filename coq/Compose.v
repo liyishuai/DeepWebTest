@@ -1,19 +1,9 @@
 From Coq Require Import
-     Basics
-     List
-     Nat.
-From ExtLib Require Import
-     Monad.
-From ITree Require Import
-     Nondeterminism
-     ITree.
+     Basics.
 From DeepWeb Require Import
-     Net.
+     Common.
 Import
-  ListNotations
-  MonadNotation
   SumNotations.
-Open Scope monad_scope.
 Open Scope program_scope.
 Open Scope sum_scope.
 
