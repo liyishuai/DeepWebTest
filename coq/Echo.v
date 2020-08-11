@@ -1,9 +1,5 @@
-From ExtLib Require Import
-     Extras.
 From DeepWeb Require Import
      Common.
-Import
-  FunNotation.
 
 Definition echo : itree netE void :=
   (rec-fix loop _ :=

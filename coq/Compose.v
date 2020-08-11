@@ -1,11 +1,9 @@
-From Coq Require Import
-     Basics.
 From DeepWeb Require Import
      Common.
 Import
   SumNotations.
-Open Scope program_scope.
-Open Scope sum_scope.
+Open Scope list_scope.
+Global Open Scope sum_scope.
 
 Fixpoint pick {A} (f : A -> bool) (l : list A) : option (A * list A) :=
   match l with
@@ -18,9 +16,6 @@ Fixpoint pick {A} (f : A -> bool) (l : list A) : option (A * list A) :=
          | None => None
          end
   end.
-
-Definition conn_is_app : connT -> bool :=
-  Nat.eqb O.
 
 Definition reset_block (pkt : packetT) (blk : option connT) : option connT :=
   match blk with

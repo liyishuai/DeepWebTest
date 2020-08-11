@@ -3,20 +3,26 @@ From DeepWeb Require Import
 
 Notation tE := (failureE +' nondetE +' decideE +' observeE).
 
-Definition match_event {T R} (e : observeE R) (r : R) (m : itree tE T)
-  : option (itree tE T).
-Admitted.
-
-Definition pickSome {T} : list (option T) -> list T :=
-  fold_right
-    (fun oh =>
-       match oh with
-       | Some h => cons h
-       | None   => id
-       end) [].
+CoFixpoint match_event {T R} (e0 : observeE R) (r : R) (m : itree tE T)
+  : itree tE T :=
+  match observe m with
+  | RetF x  => Ret x
+  | TauF m' => Tau (match_event e0 r m')
+  | VisF e k =>
+    match e with
+    | (|||oe) =>
+      match oe in observeE Y, e0 in observeE R return (Y -> _) -> R -> _ with
+      | Observe__Send c0, Observe__Send c =>
+        if (c0 =? c)%nat then id else fun _ _ => throw "Sent from different connection"
+      | Observe__Recv, Observe__Recv => id
+      | _, _ => fun _ _ => throw "Unexpected event"
+      end k r
+    | _ => vis e k
+    end
+  end.
 
 Definition match_observe {T R} (e : observeE T) (r : T) (l : list (itree tE R))
-  : list (itree tE R) := pickSome (map (match_event e r) l).
+  : list (itree tE R) := map (match_event e r) l.
 
 CoFixpoint tester' {E R} `{genE -< E} `{nondetE -< E} `{failureE -< E}
            `{netE -< E} (others : list (itree tE R)) (m : itree tE R)
@@ -59,3 +65,6 @@ CoFixpoint tester' {E R} `{genE -< E} `{nondetE -< E} `{failureE -< E}
       end k
     end
   end.
+
+Definition tester {E R} `{genE -< E} `{nondetE -< E} `{failureE -< E}
+           `{netE -< E} : itree tE R -> itree E R := tester' [].

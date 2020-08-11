@@ -21,8 +21,9 @@ jobs:
       - run:
           name: Install dependencies
           command: |
+              opam repo add coq-extra-dev https://coq.inria.fr/opam/extra-dev
               opam update
-              opam install coq-ceres coq-itree
+              opam install coq-ceres coq-itree-io
       - run:
           name: List installed packages
           command: opam list

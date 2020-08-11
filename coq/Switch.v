@@ -1,11 +1,5 @@
-From ExtLib Require Import
-     Extras
-     Functor.
 From DeepWeb Require Import
      Common.
-Import
-  FunNotation
-  FunctorNotation.
 
 Definition udp {E} `{nondetE -< E} `{netE -< E} : itree E void :=
   (rec-fix loop in_pkt0 :=

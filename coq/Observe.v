@@ -1,24 +1,18 @@
-From Coq Require Export
-     String.
-From ExtLib Require Import
-     Functor.
 From ITree Require Export
      Exception.
 From DeepWeb Require Export
      Common.
 Export
-  FunctorNotation
   SumNotations.
-Global Open Scope string_scope.
 Global Open Scope sum_scope.
 
 Variant observeE : Type -> Set :=
   Observe__Send : connT -> observeE packetT
 | Observe__Recv : observeE packetT.
 
-Definition failureE := exceptE string.
-
 Definition conns : list connT := seq 1 10.
+
+Definition failureE := exceptE string.
 
 Definition dualize {E R} `{failureE -< E} `{nondetE -< E} `{observeE -< E}
            (e : netE R) : itree E R :=
