@@ -37,9 +37,6 @@ workflows:
   test:
     jobs:
       - build:
-          name: Coq 8.8
-          coq: '8.8'
-      - build:
           name: Coq 8.9
           coq: '8.9'
       - build:

@@ -1,3 +1,5 @@
+From Coq Require Export
+     String.
 From ITree Require Export
      Exception.
 From DeepWeb Require Export
@@ -14,7 +16,7 @@ Definition conns : list connT := seq 1 10.
 
 Definition failureE := exceptE string.
 
-Definition dualize {E R} `{failureE -< E} `{nondetE -< E} `{observeE -< E}
+Definition dualize {E} `{failureE -< E} `{nondetE -< E} `{observeE -< E} R
            (e : netE R) : itree E R :=
   match e in netE R return _ R with
   | Net__Select => fst <$> sublist conns
@@ -26,13 +28,5 @@ Definition dualize {E R} `{failureE -< E} `{nondetE -< E} `{observeE -< E}
   end.
 
 Definition observer {E R} `{failureE -< E} `{nondetE -< E} `{decideE -< E} `{observeE -< E}
-           (m : itree (nondetE +' netE) R) : itree E R :=
-  interp
-    (fun _ e =>
-       match e with
-       | (e|) =>
-         match e in nondetE Y return _ Y with
-         | Or => trigger Decide
-         end
-       | (|e) => dualize e
-       end) m.
+           (m : itree netE R) : itree E R :=
+  interp dualize m.

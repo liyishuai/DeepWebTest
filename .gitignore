@@ -34,3 +34,6 @@ nra.cache
 .DS_Store
 Makefile.coq
 *.conf
+*.ml
+*.mli
+_build

@@ -1,10 +1,15 @@
-From DeepWeb Require Import
+From SimpleIO Require Export
+     IO_Random
+     SimpleIO.
+From ITreeIO Require Export
+     ITreeIO.
+From DeepWeb Require Export
      Observe.
 
-Notation tE := (failureE +' nondetE +' decideE +' observeE).
+Notation oE := (failureE +' nondetE +' decideE +' observeE).
 
-CoFixpoint match_event {T R} (e0 : observeE R) (r : R) (m : itree tE T)
-  : itree tE T :=
+CoFixpoint match_event {T R} (e0 : observeE R) (r : R) (m : itree oE T)
+  : itree oE T :=
   match observe m with
   | RetF x  => Ret x
   | TauF m' => Tau (match_event e0 r m')
@@ -21,11 +26,11 @@ CoFixpoint match_event {T R} (e0 : observeE R) (r : R) (m : itree tE T)
     end
   end.
 
-Definition match_observe {T R} (e : observeE T) (r : T) (l : list (itree tE R))
-  : list (itree tE R) := map (match_event e r) l.
+Definition match_observe {T R} (e : observeE T) (r : T) (l : list (itree oE R))
+  : list (itree oE R) := map (match_event e r) l.
 
 CoFixpoint tester' {E R} `{genE -< E} `{nondetE -< E} `{failureE -< E}
-           `{netE -< E} (others : list (itree tE R)) (m : itree tE R)
+           `{netE -< E} (others : list (itree oE R)) (m : itree oE R)
   : itree E R :=
   match observe m with
   | RetF r  => ret r
@@ -50,7 +55,7 @@ CoFixpoint tester' {E R} `{genE -< E} `{nondetE -< E} `{failureE -< E}
       match oe in observeE Y return (Y -> _) -> _ with
       | Observe__Send c =>
         fun k =>
-          pkt <- trigger Gen;;
+          pkt <- embed Gen c;;
           embed Net__Send pkt;;
           Tau (tester' (match_observe (Observe__Send c) pkt others) (k pkt))
       | Observe__Recv =>
@@ -67,4 +72,4 @@ CoFixpoint tester' {E R} `{genE -< E} `{nondetE -< E} `{failureE -< E}
   end.
 
 Definition tester {E R} `{genE -< E} `{nondetE -< E} `{failureE -< E}
-           `{netE -< E} : itree tE R -> itree E R := tester' [].
+           `{netE -< E} : itree oE R -> itree E R := tester' [].
