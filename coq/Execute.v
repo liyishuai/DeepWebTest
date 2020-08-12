@@ -1,6 +1,5 @@
 From Coq Require Import
-     ExtrOcamlIntConv
-     ZArith.
+     ExtrOcamlIntConv.
 From Ceres Require Import
      Ceres.
 From ExtLib Require Import
@@ -12,14 +11,45 @@ From SimpleIO Require Import
      IO_Unix
      SimpleIO.
 From DeepWeb Require Export
+     Compose
+     Switch
      Test.
 Coercion int_of_nat : nat >-> int.
 
-Module Unix.
+Module NetUnix.
 
   Import
     OSys
     OUnix.
+
+  (** The socket options that can be consulted with [IO_Unix.getsockopt]
+      and modified with [IO_Unix.setsockopt].  These options have a boolean
+      ([true]/[false]) value. *)
+  Variant socket_bool_option :=
+    SO_DEBUG       (* Record debugging information *)
+  | SO_BROADCAST   (* Permit sending of broadcast messages *)
+  | SO_REUSEADDR   (* Allow reuse of local addresses for bind *)
+  | SO_KEEPALIVE   (* Keep connection active *)
+  | SO_DONTROUTE   (* Bypass the standard routing algorithms *)
+  | SO_OOBINLINE   (* Leave out-of-band data in line *)
+  | SO_ACCEPTCONN  (* Report whether socket listening is enabled *)
+  | TCP_NODELAY    (* Control the Nagle algorithm for TCP sockets *)
+  | IPV6_ONLY.     (* Forbid binding an IPv6 socket to an IPv4 address *)
+
+  Parameter setsockopt : file_descr -> socket_bool_option -> bool -> IO unit.
+
+  Extract Inductive socket_bool_option =>
+    "Unix.socket_bool_option"
+      ["Unix.SO_DEBUG"
+       "Unix.SO_BROADCAST"
+       "Unix.SO_REUSEADDR"
+       "Unix.SO_KEEPALIVE"
+       "Unix.SO_DONTROUTE"
+       "Unix.OOBINLINE"
+       "Unix.SO_ACCEPTCONN"
+       "Unix.TCP_NODELAY"
+       "Unix.IPV6_ONLY"].
+  Extract Constant setsockopt => "fun f o b k -> k (Unix.setsockopt f o b)".
 
   Definition getport : IO int :=
     let default : int := int_of_n 8000 in
@@ -56,6 +86,7 @@ Module Unix.
            let iaddr : inet_addr := inet_addr_loopback in
            fd <- socket PF_INET SOCK_STREAM int_zero;;
            (ADDR_INET iaddr <$> getport) >>= connect fd;;
+           setsockopt fd TCP_NODELAY true;;
            ret (fd, (c, fd) :: s)
          end).
 
@@ -94,21 +125,26 @@ Module Unix.
       | Net__Select =>
         mkStateT
           (fun s =>
+             prerr_endline "select";;
              '(reads, _, _) <- select (map snd s) [] [] (OFloat.of_int 1);;
              ret (conns_of_fds reads s, s))
       | Net__Recv c =>
         mkStateT
           (fun s =>
+             prerr_endline ("recv " ++ to_string c);;
              match fd_of_conn c s with
              | Some fd => b <- recv_byte fd;;
-                         ret (Packet 0 c b, s)
+                         let pkt : packetT := Packet 0 c b in
+                         prerr_endline ("received " ++ to_string pkt);;
+                         ret (pkt, s)
              | None => failwith $ "unknown connection ID" ++ to_string c
              end)
-      | Net__Send (Packet src dst msg) =>
+      | Net__Send (Packet src dst msg as pkt) =>
         mkStateT
           (fun s =>
              if conn_is_app dst
              then
+               prerr_endline ("send " ++ to_string pkt);;
                '(fd, s') <- runStateT (create_conn dst) s;;
                send_byte fd msg;;
                ret (tt, s')
@@ -117,9 +153,9 @@ Module Unix.
                ret (tt, s))
       end.
 
-End Unix.
+End NetUnix.
 
-Import Unix.
+Import NetUnix.
 
 Notation tE := (genE +' nondetE +' failureE +' netE).
 
@@ -154,8 +190,8 @@ Definition execute {R} : itree tE R -> IO bool :=
   bind (fold_right (flip bind ∘ execStateT ∘ create_conn) (ret []) conns)
        ∘ flip (execute' 5000).
 
-Definition test {R} : itree netE R -> IO bool :=
-  execute ∘ tester ∘ observer.
+Definition test : itree netE void -> IO bool :=
+  execute ∘ tester ∘ observer ∘ compose_switch tcp.
 
 Definition run' {R} : itree netE R -> conn_state -> IO R :=
   curry $ IO.fix_io
@@ -175,4 +211,5 @@ Definition run_server {R} (m : itree netE R) : IO R :=
      (fun ml c =>
         l <- ml;;
         fd <- accept_conn sfd;;
+        setsockopt fd TCP_NODELAY true;;
         ret ((c, fd) :: l)) conns (ret [])) >>= run' m.

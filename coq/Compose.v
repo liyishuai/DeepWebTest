@@ -92,6 +92,6 @@ CoFixpoint compose' {E T} `{nondetE -< E} `{netE -< E}
     end
   end.
 
-Definition compose {E T} `{nondetE -< E} `{netE -< E}
+Definition compose_switch {E T} `{nondetE -< E} `{netE -< E}
   : itree (nondetE +' netE) T -> itree netE T -> itree E T :=
   compose' None [] [].

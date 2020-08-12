@@ -2,7 +2,12 @@ From Coq Require Export
      Ascii
      Basics
      List
+     String
+     ZArith
      Nat.
+From Ceres Require Export
+     CeresSerialize
+     Ceres.
 From ExtLib Require Export
      Extras
      Functor
@@ -39,6 +44,18 @@ Record packetT := Packet {
   packet__src     : connT;
   packet__dst     : connT;
   packet__payload : messageT }.
+
+Coercion Z.of_nat : connT >-> Z.
+
+Local Open Scope sexp_scope.
+Instance Serialize__packetT : Serialize packetT :=
+  fun pkt =>
+    let 'Packet src dst payload := pkt in
+    [Atom "Packet";
+     [Atom "source";      Atom src];
+     [Atom "destination"; Atom dst];
+     [Atom "payload";     Atom (Str (String payload ""))]
+    ].
 
 Definition eqb_packet (p1 p2 : packetT) : bool :=
   let 'Packet src1 dst1 msg1 := p1 in

@@ -62,7 +62,11 @@ CoFixpoint tester' {E R} `{genE -< E} `{nondetE -< E} `{failureE -< E}
         fun k =>
           conns <- trigger Net__Select;;
           match conns with
-          | [] => catch "Not ready to receive"
+          | [] =>
+            match others with
+            | [] => Tau (tester' [] m)
+            | other :: others' => Tau (tester' (others ++ [m]) other)
+            end
           | c :: _ =>
             pkt <- embed Net__Recv c;;
             Tau (tester' (match_observe Observe__Recv pkt others) (k pkt))
