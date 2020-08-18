@@ -205,7 +205,7 @@ Definition run' {R} : itree netE R -> conn_state -> IO R :=
              loop (k r, s')
            end).
 
-Definition run_server {R} (m : itree netE R) : IO R :=
+Definition run_server (m : itree netE void) : IO void :=
   sfd <- create_sock;;
   (fold_left
      (fun ml c =>

@@ -32,7 +32,7 @@ Definition observer {E R} `{failureE -< E} `{nondetE -< E} `{decideE -< E} `{obs
        match e with
        | (e|) =>
          match e in nondetE R return _ R with
-         | Or => trigger Or
+         | Or => trigger Decide
          end
        | (|e) => dualize e
        end) m.
