@@ -48,7 +48,7 @@ CoFixpoint compose' {E T} `{nondetE -< E} `{netE -< E}
               | None            => Tau (compose' (Some c) bfi bfo net app)
               end
           | Net__Send pkt =>
-            fun k => Tau (compose' None bfi (pkt :: bfo) net (k tt))
+            fun k => Tau (compose' None bfi (bfo ++ [pkt]) net (k tt))
           end ka
         end in
     let step__net :=
@@ -80,7 +80,7 @@ CoFixpoint compose' {E T} `{nondetE -< E} `{netE -< E}
           | Net__Send pkt =>
             fun k =>
               if conn_is_app (packet__dst pkt)
-              then Tau (compose' (reset_block pkt blk) (pkt :: bfi) bfo (k tt) app)
+              then Tau (compose' (reset_block pkt blk) (bfi ++ [pkt]) bfo (k tt) app)
               else
                 embed Net__Send pkt;;
                 Tau (compose' blk bfi bfo (k tt) app)

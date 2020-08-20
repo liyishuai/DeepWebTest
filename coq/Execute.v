@@ -125,8 +125,8 @@ Module NetUnix.
       | Net__Select =>
         mkStateT
           (fun s =>
-             prerr_endline "select";;
              '(reads, _, _) <- select (map snd s) [] [] (OFloat.of_int 1);;
+             prerr_endline ("selected " ++ to_string (conns_of_fds reads s));;
              ret (conns_of_fds reads s, s))
       | Net__Recv c =>
         mkStateT
@@ -193,7 +193,7 @@ Definition execute {R} : itree tE R -> IO bool :=
 Definition test : itree netE void -> IO bool :=
   execute ∘ tester ∘ observer ∘ compose_switch tcp.
 
-Definition run' {R} : itree netE R -> conn_state -> IO R :=
+Definition run' : itree netE void -> conn_state -> IO void :=
   curry $ IO.fix_io
         (fun loop ms =>
            let (m, s) := ms : _ * conn_state in

@@ -3,6 +3,8 @@ From Coq Require Export
      String.
 From ExtLib Require Export
      Monad.
+From Ceres Require Import
+     Ceres.
 From SimpleIO Require Export
      IO_Unix
      SimpleIO.
@@ -19,7 +21,8 @@ Fixpoint multi_test' (fuel : nat) (test : IO bool) : IO bool :=
   match fuel with
   | O => ret true
   | S fuel =>
-    upon_success (multi_test' fuel test) test
+    upon_success (prerr_endline (to_string fuel);;
+                  multi_test' fuel test) test
   end.
 
 Definition multi_test : IO bool -> IO bool := multi_test' 5000.

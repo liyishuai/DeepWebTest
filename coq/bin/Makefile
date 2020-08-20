@@ -1,6 +1,6 @@
-all: EchoServer.native EchoTest.native
-	$(RM) $<
-	$(MAKE) $<
+all:
+	$(MAKE) EchoServer.native
+	$(MAKE) EchoTest.native
 
 COQMAKEFILE	?= Makefile.coq
 

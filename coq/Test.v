@@ -49,7 +49,8 @@ CoFixpoint tester' {E R} `{genE -< E} `{nondetE -< E} `{failureE -< E}
       end k
     | (||de|) =>
       match de in decideE Y return (Y -> _) -> _ with
-      | Decide => fun k => Tau (tester' (k false :: others) (k true))
+      | Decide =>
+        fun k => b <- trigger Or;; Tau (tester' (k (negb b) :: others) (k b))
       end k
     | (|||oe) =>
       match oe in observeE Y return (Y -> _) -> _ with
@@ -65,7 +66,7 @@ CoFixpoint tester' {E R} `{genE -< E} `{nondetE -< E} `{failureE -< E}
           | [] =>
             match others with
             | [] => Tau (tester' [] m)
-            | other :: others' => Tau (tester' (others ++ [m]) other)
+            | other :: others' => Tau (tester' (others' ++ [m]) other)
             end
           | c :: _ =>
             pkt <- embed Net__Recv c;;
