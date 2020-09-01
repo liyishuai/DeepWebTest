@@ -48,13 +48,16 @@ Record packetT := Packet {
 Coercion Z.of_nat : connT >-> Z.
 
 Local Open Scope sexp_scope.
+Instance Serialize__messageT : Serialize messageT :=
+  fun msg => [Atom "payload"; Atom (Str (String msg ""))].
+
 Instance Serialize__packetT : Serialize packetT :=
   fun pkt =>
     let 'Packet src dst payload := pkt in
     [Atom "Packet";
      [Atom "source";      Atom src];
      [Atom "destination"; Atom dst];
-     [Atom "payload";     Atom (Str (String payload ""))]
+     to_sexp payload
     ].
 
 Definition eqb_packet (p1 p2 : packetT) : bool :=

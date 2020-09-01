@@ -2,8 +2,6 @@ From Coq Require Import
      ExtrOcamlIntConv.
 From Ceres Require Import
      Ceres.
-From ExtLib Require Import
-     StateMonad.
 From SimpleIO Require Import
      IO_Bytes
      IO_Float
@@ -14,6 +12,7 @@ From DeepWeb Require Export
      Compose
      Switch
      Test.
+Import Monads.
 Coercion int_of_nat : nat >-> int.
 
 Module NetUnix.
@@ -21,35 +20,6 @@ Module NetUnix.
   Import
     OSys
     OUnix.
-
-  (** The socket options that can be consulted with [IO_Unix.getsockopt]
-      and modified with [IO_Unix.setsockopt].  These options have a boolean
-      ([true]/[false]) value. *)
-  Variant socket_bool_option :=
-    SO_DEBUG       (* Record debugging information *)
-  | SO_BROADCAST   (* Permit sending of broadcast messages *)
-  | SO_REUSEADDR   (* Allow reuse of local addresses for bind *)
-  | SO_KEEPALIVE   (* Keep connection active *)
-  | SO_DONTROUTE   (* Bypass the standard routing algorithms *)
-  | SO_OOBINLINE   (* Leave out-of-band data in line *)
-  | SO_ACCEPTCONN  (* Report whether socket listening is enabled *)
-  | TCP_NODELAY    (* Control the Nagle algorithm for TCP sockets *)
-  | IPV6_ONLY.     (* Forbid binding an IPv6 socket to an IPv4 address *)
-
-  Parameter setsockopt : file_descr -> socket_bool_option -> bool -> IO unit.
-
-  Extract Inductive socket_bool_option =>
-    "Unix.socket_bool_option"
-      ["Unix.SO_DEBUG"
-       "Unix.SO_BROADCAST"
-       "Unix.SO_REUSEADDR"
-       "Unix.SO_KEEPALIVE"
-       "Unix.SO_DONTROUTE"
-       "Unix.OOBINLINE"
-       "Unix.SO_ACCEPTCONN"
-       "Unix.TCP_NODELAY"
-       "Unix.IPV6_ONLY"].
-  Extract Constant setsockopt => "fun f o b k -> k (Unix.setsockopt f o b)".
 
   Definition getport : IO int :=
     let default : int := int_of_n 8000 in
@@ -78,28 +48,33 @@ Module NetUnix.
     fmap snd ∘ find (eqb c ∘ fst).
 
   Definition create_conn (c : connT) : stateT conn_state IO file_descr :=
-    mkStateT
       (fun s =>
          match fd_of_conn c s with
-         | Some fd => ret (fd, s)
+         | Some fd => ret (s, fd)
          | None =>
            let iaddr : inet_addr := inet_addr_loopback in
            fd <- socket PF_INET SOCK_STREAM int_zero;;
            (ADDR_INET iaddr <$> getport) >>= connect fd;;
-           setsockopt fd TCP_NODELAY true;;
-           ret (fd, (c, fd) :: s)
+           ret ((c, fd) :: s, fd)
          end).
 
   Definition conns_of_fds (fds : list file_descr) : conn_state -> list connT :=
     map fst ∘ filter (fun cf => existsb (file_descr_eqb $ snd cf) fds).
 
+  Definition select_fds (cs : conn_state) : IO (list file_descr) :=
+    '(reads, _, _) <- select (map snd cs) [] [] (OFloat.of_int 1);;
+    ret reads.
+  
   Definition recv_byte (fd : file_descr) : IO messageT :=
     buf <- OBytes.create 1;;
     IO.fix_io
       (fun recv_rec _ =>
+         prerr_endline "receiving...";;
          len <- z_of_int <$> recv fd buf int_zero 1 [];;
          match len with
-         | 0%Z => recv_rec tt
+         | 0%Z => prerr_endline "received 0 byte, retry";;
+                 OUnix.sleep 1;;
+                 recv_rec tt
          | 1%Z => ostr <- OBytes.to_string buf;;
                  match from_ostring ostr with
                  | "" => failwith "string of buffer is empty"
@@ -109,7 +84,7 @@ Module NetUnix.
          end) tt.
 
   Definition send_byte (fd : file_descr) (msg : messageT) : IO unit :=
-    buf <- OBytes.create 1;;
+    buf <- OBytes.of_string (String msg "");;
     IO.fix_io
       (fun send_rec _ =>
          sent <- z_of_int <$> send fd buf int_zero 1 [];;
@@ -123,34 +98,32 @@ Module NetUnix.
     fun _ ne =>
       match ne with
       | Net__Select =>
-        mkStateT
-          (fun s =>
-             '(reads, _, _) <- select (map snd s) [] [] (OFloat.of_int 1);;
-             prerr_endline ("selected " ++ to_string (conns_of_fds reads s));;
-             ret (conns_of_fds reads s, s))
+        (fun s =>
+             reads <- select_fds s;;
+             let cs : list connT := conns_of_fds reads s in
+             prerr_endline ("selected " ++ to_string cs);;
+             ret (s, cs))
       | Net__Recv c =>
-        mkStateT
           (fun s =>
-             prerr_endline ("recv " ++ to_string c);;
+             prerr_endline ("receiving from " ++ to_string c);;
              match fd_of_conn c s with
              | Some fd => b <- recv_byte fd;;
                          let pkt : packetT := Packet 0 c b in
                          prerr_endline ("received " ++ to_string pkt);;
-                         ret (pkt, s)
+                         ret (s, pkt)
              | None => failwith $ "unknown connection ID" ++ to_string c
              end)
       | Net__Send (Packet src dst msg as pkt) =>
-        mkStateT
           (fun s =>
              if conn_is_app dst
              then
-               prerr_endline ("send " ++ to_string pkt);;
-               '(fd, s') <- runStateT (create_conn dst) s;;
+               '(s', fd) <- create_conn dst s;;
                send_byte fd msg;;
-               ret (tt, s')
+               prerr_endline ("sent " ++ to_string pkt);;
+               ret (s', tt)
              else
                prerr_endline "Ignore sends other than the application";;
-               ret (tt, s))
+               ret (s, tt))
       end.
 
 End NetUnix.
@@ -180,30 +153,24 @@ Fixpoint execute' {R} (fuel : nat) (s : conn_state) (m : itree tE R) : IO bool :
         end k
       | (||Throw err|) => prerr_endline (to_ostring err);;
                          ret false
-      | (|||ne) => '(r, s') <- runStateT (net_io _ ne) s;;
+      | (|||ne) => '(s', r) <- net_io _ ne s;;
                   execute' fuel s' (k r)
       end
     end
   end.
 
-Definition execute {R} : itree tE R -> IO bool :=
-  bind (fold_right (flip bind ∘ execStateT ∘ create_conn) (ret []) conns)
-       ∘ flip (execute' 5000).
+Definition execute {R} (m : itree tE R) : IO bool :=
+  cs <- fold_left
+         (fun ml c => l <- ml;;
+                   fst <$> create_conn c l)
+         conns (ret []);;
+  execute' 5000 cs m.
 
 Definition test : itree netE void -> IO bool :=
   execute ∘ tester ∘ observer ∘ compose_switch tcp.
 
-Definition run' : itree netE void -> conn_state -> IO void :=
-  curry $ IO.fix_io
-        (fun loop ms =>
-           let (m, s) := ms : _ * conn_state in
-           match observe m with
-           | RetF r   => ret r
-           | TauF m'  => loop (m', s)
-           | VisF e k =>
-             '(r, s') <- runStateT (net_io _ e) s;;
-             loop (k r, s')
-           end).
+Definition run' (m : itree netE void) (cs : conn_state) : IO void :=
+  snd <$> interp net_io m cs.
 
 Definition run_server (m : itree netE void) : IO void :=
   sfd <- create_sock;;
@@ -211,5 +178,67 @@ Definition run_server (m : itree netE void) : IO void :=
      (fun ml c =>
         l <- ml;;
         fd <- accept_conn sfd;;
-        setsockopt fd TCP_NODELAY true;;
         ret ((c, fd) :: l)) conns (ret [])) >>= run' m.
+
+Definition echo0 : IO void :=
+  sfd <- create_sock;;
+  IO.fix_io
+    (fun loop _ =>
+       fd <- accept_conn sfd;;
+       req <- recv_byte fd;;
+       prerr_endline ("recv " ++ to_string req);;
+       send_byte fd req;;
+       prerr_endline ("sent" ++ to_string req);;
+       OUnix.close fd;;
+       loop tt) tt.
+
+Definition client0 : IO void :=
+  ORandom.self_init tt;;
+  IO.fix_io
+    (fun loop _ =>
+       fd <- snd <$> create_conn 0 [];;
+       req <- ascii_of_int <$> ORandom.int 256;;
+       send_byte fd req;;
+       prerr_endline ("sent " ++ to_string req);;
+       res <- recv_byte fd;;
+       prerr_endline ("recv " ++ to_string req);;
+       OUnix.close fd;;
+       loop tt) tt.
+
+Definition echo1 : IO void :=
+  sfd <- create_sock;;
+  cs <- fold_left
+         (fun ml c =>
+            l <- ml;;
+            fd <- accept_conn sfd;;
+            ret ((c, fd) :: l)) conns (ret []);;
+  IO.fix_io
+    (fun loop _ =>
+       fds <- select_fds cs;;
+       prerr_endline ("selected " ++ to_string (conns_of_fds fds cs));;
+       fold_left
+         (fun _ fd =>
+            prerr_endline "receiving...";;
+            req <- recv_byte fd;;
+            prerr_endline ("recv " ++ to_string req);;
+            send_byte fd req;;
+            prerr_endline ("sent " ++ to_string req))
+         fds (ret tt);;
+       loop tt) tt.
+
+Definition client1 : IO void :=
+  ORandom.self_init tt;;
+  cs <- fold_left
+         (fun ml c => l <- ml;;
+                   fst <$> create_conn c l)
+         conns (ret []);;
+  IO.fix_io
+    (fun loop _ =>
+       c <- S ∘ nat_of_int <$> ORandom.int 9;;
+       fd <- snd <$> create_conn c cs;;
+       req <- ascii_of_int <$> ORandom.int 256;;
+       send_byte fd req;;
+       prerr_endline ("sent " ++ to_string req);;
+       res <- recv_byte fd;;
+       prerr_endline ("recv " ++ to_string res);;
+       loop tt) tt.
