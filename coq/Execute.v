@@ -40,7 +40,8 @@ Module NetUnix.
     ret fd.
 
   Definition accept_conn (sfd : file_descr) : IO file_descr :=
-    fst <$> accept sfd.
+    fd <- fst <$> accept sfd;;
+    ret fd.
 
   Definition conn_state := list (connT * file_descr).
 
@@ -64,7 +65,7 @@ Module NetUnix.
   Definition select_fds (cs : conn_state) : IO (list file_descr) :=
     '(reads, _, _) <- select (map snd cs) [] [] (OFloat.of_int 1);;
     ret reads.
-  
+
   Definition recv_byte (fd : file_descr) : IO messageT :=
     buf <- OBytes.create 1;;
     IO.fix_io
@@ -108,27 +109,44 @@ Module NetUnix.
              prerr_endline ("receiving from " ++ to_string c);;
              match fd_of_conn c s with
              | Some fd => b <- recv_byte fd;;
-                         let pkt : packetT := Packet 0 c b in
+                         let pkt : packetT := Packet c 0 b in
                          prerr_endline ("received " ++ to_string pkt);;
                          ret (s, pkt)
              | None => failwith $ "unknown connection ID" ++ to_string c
              end)
       | Net__Send (Packet src dst msg as pkt) =>
-          (fun s =>
-             if conn_is_app dst
+        (fun s =>
+             if conn_is_app dst (* to server *)
              then
+               '(s', fd) <- create_conn src s;;
+               send_byte fd msg;;
+               prerr_endline ("sent to server " ++ to_string pkt);;
+               ret (s', tt)
+             else               (* to client *)
                '(s', fd) <- create_conn dst s;;
                send_byte fd msg;;
-               prerr_endline ("sent " ++ to_string pkt);;
-               ret (s', tt)
-             else
-               prerr_endline "Ignore sends other than the application";;
-               ret (s, tt))
+               prerr_endline ("sent to client " ++ to_string pkt);;
+               ret (s', tt))
       end.
 
 End NetUnix.
 
 Import NetUnix.
+
+Definition client_init : IO conn_state :=
+  ORandom.self_init tt;;
+  fold_left
+    (fun ml c => l <- ml;;
+              fst <$> create_conn c l)
+    conns (ret []).
+
+Definition server_init : IO conn_state :=
+  sfd <- create_sock;;
+  (fold_left
+     (fun ml c =>
+        l <- ml;;
+        fd <- accept_conn sfd;;
+        ret ((c, fd) :: l)) conns (ret [])).
 
 Notation tE := (genE +' nondetE +' failureE +' netE).
 
@@ -160,10 +178,7 @@ Fixpoint execute' {R} (fuel : nat) (s : conn_state) (m : itree tE R) : IO bool :
   end.
 
 Definition execute {R} (m : itree tE R) : IO bool :=
-  cs <- fold_left
-         (fun ml c => l <- ml;;
-                   fst <$> create_conn c l)
-         conns (ret []);;
+  cs <- client_init;;
   execute' 5000 cs m.
 
 Definition test : itree netE void -> IO bool :=
@@ -173,45 +188,10 @@ Definition run' (m : itree netE void) (cs : conn_state) : IO void :=
   snd <$> interp net_io m cs.
 
 Definition run_server (m : itree netE void) : IO void :=
-  sfd <- create_sock;;
-  (fold_left
-     (fun ml c =>
-        l <- ml;;
-        fd <- accept_conn sfd;;
-        ret ((c, fd) :: l)) conns (ret [])) >>= run' m.
+  server_init >>= run' m.
 
 Definition echo0 : IO void :=
-  sfd <- create_sock;;
-  IO.fix_io
-    (fun loop _ =>
-       fd <- accept_conn sfd;;
-       req <- recv_byte fd;;
-       prerr_endline ("recv " ++ to_string req);;
-       send_byte fd req;;
-       prerr_endline ("sent" ++ to_string req);;
-       OUnix.close fd;;
-       loop tt) tt.
-
-Definition client0 : IO void :=
-  ORandom.self_init tt;;
-  IO.fix_io
-    (fun loop _ =>
-       fd <- snd <$> create_conn 0 [];;
-       req <- ascii_of_int <$> ORandom.int 256;;
-       send_byte fd req;;
-       prerr_endline ("sent " ++ to_string req);;
-       res <- recv_byte fd;;
-       prerr_endline ("recv " ++ to_string req);;
-       OUnix.close fd;;
-       loop tt) tt.
-
-Definition echo1 : IO void :=
-  sfd <- create_sock;;
-  cs <- fold_left
-         (fun ml c =>
-            l <- ml;;
-            fd <- accept_conn sfd;;
-            ret ((c, fd) :: l)) conns (ret []);;
+  cs <- server_init;;
   IO.fix_io
     (fun loop _ =>
        fds <- select_fds cs;;
@@ -226,12 +206,24 @@ Definition echo1 : IO void :=
          fds (ret tt);;
        loop tt) tt.
 
+Definition echo1 : IO void :=
+  cs <- server_init;;
+  IO.fix_io
+    (fun loop _ =>
+       fds <- select_fds cs;;
+       prerr_endline ("selected " ++ to_string (conns_of_fds fds cs));;
+       fold_left
+         (fun _ fd =>
+            prerr_endline "receiving...";;
+            req <- recv_byte fd;;
+            prerr_endline ("recv " ++ to_string req);;
+            send_byte fd (ascii_of_nat (Nat.lor 1 (nat_of_ascii req)));; (* bug here *)
+            prerr_endline ("sent " ++ to_string req))
+         fds (ret tt);;
+       loop tt) tt.
+
 Definition client1 : IO void :=
-  ORandom.self_init tt;;
-  cs <- fold_left
-         (fun ml c => l <- ml;;
-                   fst <$> create_conn c l)
-         conns (ret []);;
+  cs <- client_init;;
   IO.fix_io
     (fun loop _ =>
        c <- S ∘ nat_of_int <$> ORandom.int 9;;

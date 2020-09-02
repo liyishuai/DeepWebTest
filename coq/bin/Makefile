@@ -2,6 +2,7 @@ all: clean
 	$(MAKE) -C ..
 	$(MAKE) EchoServer.native
 	$(MAKE) EchoTest.native
+	$(MAKE) Echo0.native
 	$(MAKE) Echo1.native
 	$(MAKE) Client1.native
 
