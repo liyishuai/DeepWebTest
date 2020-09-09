@@ -1,5 +1,6 @@
 From DeepWeb Require Import
-     Common.
+     Common
+     Switch.
 Import
   SumNotations.
 Open Scope list_scope.
@@ -23,10 +24,10 @@ Definition reset_block (pkt : packetT) (blk : option connT) : option connT :=
   | None    => None
   end.
 
-CoFixpoint compose' {E T} `{nondetE -< E} `{netE -< E}
+CoFixpoint compose' {E T} `{Is__nE E}
            (blk     : option connT)
            (bfi bfo : list packetT)
-           (net     : itree (nondetE +' netE) T)
+           (net     : itree nE T)
            (app     : itree netE T) : itree E T :=
   match observe net, observe app with
   | RetF r, _
@@ -44,7 +45,8 @@ CoFixpoint compose' {E T} `{nondetE -< E} `{netE -< E}
           | Net__Recv c =>
             fun k =>
               match pick (Nat.eqb c ∘ packet__src) bfi with
-              | Some (pkt, bi') => Tau (compose' None bi' bfo net (k pkt))
+              | Some (pkt, bi') =>
+                Tau (compose' None bi' bfo net (k pkt))
               | None            => Tau (compose' (Some c) bfi bfo net app)
               end
           | Net__Send pkt =>
@@ -60,7 +62,14 @@ CoFixpoint compose' {E T} `{nondetE -< E} `{netE -< E}
               b <- trigger Or;;
               Tau (compose' blk bfi bfo (k b) app)
           end kn
-        | (|e) =>
+        | (|e|) =>
+          match e in logE Y return (Y -> _) -> _ with
+          | Log str =>
+            fun k =>
+              embed Log ("Switch: " ++ str)%string;;
+              Tau (compose' blk bfi bfo (k tt) app)
+          end kn
+        | (||e) =>
           match e in netE Y return (Y -> _) -> _ with
           | Net__Select =>
             fun k =>
@@ -71,7 +80,8 @@ CoFixpoint compose' {E T} `{nondetE -< E} `{netE -< E}
               if conn_is_app c
               then
                 match pick (Nat.eqb c ∘ packet__src) bfo with
-                | Some (pkt, bo') => Tau (compose' blk bfi bo' (k pkt) app)
+                | Some (pkt, bo') =>
+                  Tau (compose' blk bfi bo' (k pkt) app)
                 | None            => ITree.spin (* should not happen *)
                 end
               else
@@ -92,6 +102,6 @@ CoFixpoint compose' {E T} `{nondetE -< E} `{netE -< E}
     end
   end.
 
-Definition compose_switch {E T} `{nondetE -< E} `{netE -< E}
-  : itree (nondetE +' netE) T -> itree netE T -> itree E T :=
+Definition compose_switch {E T} `{Is__nE E}
+  : itree nE T -> itree netE T -> itree E T :=
   compose' None [] [].

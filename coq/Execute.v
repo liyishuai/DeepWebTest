@@ -70,7 +70,6 @@ Module NetUnix.
     buf <- OBytes.create 1;;
     IO.fix_io
       (fun recv_rec _ =>
-         prerr_endline "receiving...";;
          len <- z_of_int <$> recv fd buf int_zero 1 [];;
          match len with
          | 0%Z => prerr_endline "received 0 byte, retry";;
@@ -95,37 +94,50 @@ Module NetUnix.
          | _   => close fd;; failwith "send byte failed"
          end) tt.
 
-  Definition net_io : netE ~> stateT conn_state IO :=
+  Definition client_io : netE ~> stateT conn_state IO :=
     fun _ ne =>
       match ne with
       | Net__Select =>
         (fun s =>
              reads <- select_fds s;;
              let cs : list connT := conns_of_fds reads s in
-             prerr_endline ("selected " ++ to_string cs);;
              ret (s, cs))
       | Net__Recv c =>
           (fun s =>
-             prerr_endline ("receiving from " ++ to_string c);;
              match fd_of_conn c s with
              | Some fd => b <- recv_byte fd;;
-                         let pkt : packetT := Packet c 0 b in
-                         prerr_endline ("received " ++ to_string pkt);;
+                         let pkt : packetT := Packet 0 c b in
                          ret (s, pkt)
              | None => failwith $ "unknown connection ID" ++ to_string c
              end)
       | Net__Send (Packet src dst msg as pkt) =>
+        (fun s => '(s', fd) <- create_conn src s;;
+               send_byte fd msg;;
+               ret (s', tt))
+      end.
+
+  Definition server_io : netE ~> stateT conn_state IO :=
+    fun _ ne =>
+      match ne with
+      | Net__Select =>
         (fun s =>
-             if conn_is_app dst (* to server *)
-             then
-               '(s', fd) <- create_conn src s;;
+             reads <- select_fds s;;
+             let cs : list connT := conns_of_fds reads s in
+             prerr_endline ("slct " ++ to_string cs);;
+             ret (s, cs))
+      | Net__Recv c =>
+          (fun s =>
+             match fd_of_conn c s with
+             | Some fd => b <- recv_byte fd;;
+                         let pkt : packetT := Packet c 0 b in
+                         prerr_endline ("recv " ++ to_string pkt);;
+                         ret (s, pkt)
+             | None => failwith $ "unknown connection ID" ++ to_string c
+             end)
+      | Net__Send (Packet src dst msg as pkt) =>
+        (fun s => '(s', fd) <- create_conn dst s;;
                send_byte fd msg;;
-               prerr_endline ("sent to server " ++ to_string pkt);;
-               ret (s', tt)
-             else               (* to client *)
-               '(s', fd) <- create_conn dst s;;
-               send_byte fd msg;;
-               prerr_endline ("sent to client " ++ to_string pkt);;
+               prerr_endline ("send " ++ to_string pkt);;
                ret (s', tt))
       end.
 
@@ -174,7 +186,7 @@ Fixpoint execute' {R} (fuel : nat) (s : conn_state) (m : itree tE R) : IO bool :
         | Log str => fun k => prerr_endline ("Tester: " ++ str);;
                           execute' fuel s (k tt)
         end k
-      | (||||ne) => '(s', r) <- net_io _ ne s;;
+      | (||||ne) => '(s', r) <- client_io _ ne s;;
                   execute' fuel s' (k r)
       end
     end
@@ -188,7 +200,7 @@ Definition test : itree netE void -> IO bool :=
   execute ∘ tester ∘ observer ∘ compose_switch tcp.
 
 Definition run' (m : itree netE void) (cs : conn_state) : IO void :=
-  snd <$> interp net_io m cs.
+  snd <$> interp server_io m cs.
 
 Definition run_server (m : itree netE void) : IO void :=
   server_init >>= run' m.

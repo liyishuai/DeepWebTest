@@ -19,15 +19,15 @@ CoFixpoint match_event {T R} (e0 : observeE R) (r : R) (m : itree oE T)
         if (c0 =? c)%nat
         then
           fun k pkt =>
-            embed Log ("Match Send " ++ to_string pkt);;
+            (* embed Log ("Match Send " ++ to_string pkt);; *)
             k pkt
         else fun _ _ =>
-               embed Log ("Mismatch Send: expect to " ++ to_string c
-                       ++ ", but observed to " ++ to_string c0);;
+               (* embed Log ("Mismatch Send: expect to " ++ to_string c *)
+               (*         ++ ", but observed to " ++ to_string c0);; *)
                throw "Sent from different connection"
       | Observe__Recv, Observe__Recv =>
         fun k pkt =>
-          embed Log ("Match Recv " ++ to_string pkt);;
+          (* embed Log ("Match Recv " ++ to_string pkt);; *)
           k pkt
       | _, _ => fun _ _ => throw "Unexpected event"
       end k r
@@ -68,9 +68,7 @@ CoFixpoint tester' {E R} `{Is__tE E} (others : list (itree oE R)) (m : itree oE 
       match de in decideE Y return (Y -> _) -> _ with
       | Decide =>
         fun k => b <- trigger Or;;
-              embed Log (to_string (S (List.length others))
-                                   ++ " decisions pending");;
-              Tau (tester' (k (negb b) :: others) (k b))
+              Tau (tester' (others ++ [k (negb b)]) (k b))
       end k
     | (|||le|) =>
       match le in logE Y return (Y -> _) -> _ with
@@ -83,6 +81,7 @@ CoFixpoint tester' {E R} `{Is__tE E} (others : list (itree oE R)) (m : itree oE 
         fun k =>
           pkt <- embed Gen c;;
           embed Net__Send pkt;;
+          embed Log ("Sent " ++ to_string pkt);;
           Tau (tester' (match_observe (Observe__Send c) pkt others) (k pkt))
       | Observe__Recv =>
         fun k =>
@@ -91,10 +90,14 @@ CoFixpoint tester' {E R} `{Is__tE E} (others : list (itree oE R)) (m : itree oE 
           | [] =>
             match others with
             | [] => Tau (tester' [] m)
-            | other :: others' => Tau (tester' (others' ++ [m]) other)
+            | other :: others' =>
+              embed Log ("Not ready to receive, try other "
+                      ++ to_string (List.length others') ++ " branches");;
+              Tau (tester' (others' ++ [m]) other)
             end
           | c :: _ =>
             pkt <- embed Net__Recv c;;
+            embed Log ("Recv " ++ to_string pkt);;
             Tau (tester' (match_observe Observe__Recv pkt others) (k pkt))
           end
       end k
