@@ -81,7 +81,7 @@ CoFixpoint tester' {E R} `{Is__tE E} (others : list (itree oE R)) (m : itree oE 
         fun k =>
           pkt <- embed Gen c;;
           embed Net__Send pkt;;
-          embed Log ("Sent " ++ to_string pkt);;
+          (* embed Log ("Sent " ++ to_string pkt);; *)
           Tau (tester' (match_observe (Observe__Send c) pkt others) (k pkt))
       | Observe__Recv =>
         fun k =>
@@ -91,13 +91,13 @@ CoFixpoint tester' {E R} `{Is__tE E} (others : list (itree oE R)) (m : itree oE 
             match others with
             | [] => Tau (tester' [] m)
             | other :: others' =>
-              embed Log ("Not ready to receive, try other "
-                      ++ to_string (List.length others') ++ " branches");;
+              (* embed Log ("Not ready to receive, try other " *)
+              (*         ++ to_string (List.length others') ++ " branches");; *)
               Tau (tester' (others' ++ [m]) other)
             end
           | c :: _ =>
             pkt <- embed Net__Recv c;;
-            embed Log ("Recv " ++ to_string pkt);;
+            (* embed Log ("Recv " ++ to_string pkt);; *)
             Tau (tester' (match_observe Observe__Recv pkt others) (k pkt))
           end
       end k

@@ -101,18 +101,21 @@ Module NetUnix.
         (fun s =>
              reads <- select_fds s;;
              let cs : list connT := conns_of_fds reads s in
+             print_endline ("slct " ++ to_string cs);;
              ret (s, cs))
       | Net__Recv c =>
           (fun s =>
              match fd_of_conn c s with
              | Some fd => b <- recv_byte fd;;
                          let pkt : packetT := Packet 0 c b in
+                         print_endline ("recv " ++ to_string pkt);;
                          ret (s, pkt)
              | None => failwith $ "unknown connection ID" ++ to_string c
              end)
       | Net__Send (Packet src dst msg as pkt) =>
         (fun s => '(s', fd) <- create_conn src s;;
                send_byte fd msg;;
+               print_endline ("send " ++ to_string pkt);;
                ret (s', tt))
       end.
 
@@ -194,7 +197,7 @@ Fixpoint execute' {R} (fuel : nat) (s : conn_state) (m : itree tE R) : IO bool :
 
 Definition execute {R} (m : itree tE R) : IO bool :=
   cs <- client_init;;
-  execute' 5000 cs m.
+  execute' 50000 cs m.
 
 Definition test : itree netE void -> IO bool :=
   execute ∘ tester ∘ observer ∘ compose_switch tcp.
