@@ -148,8 +148,6 @@ Definition server_init : IO conn_state :=
         fd <- accept_conn sfd;;
         ret ((c, fd) :: l)) conns (ret [])).
 
-Notation tE := (genE +' nondetE +' failureE +' netE).
-
 Fixpoint execute' {R} (fuel : nat) (s : conn_state) (m : itree tE R) : IO bool :=
   match fuel with
   | O => ret true
@@ -171,7 +169,12 @@ Fixpoint execute' {R} (fuel : nat) (s : conn_state) (m : itree tE R) : IO bool :
         end k
       | (||Throw err|) => prerr_endline (to_ostring err);;
                          ret false
-      | (|||ne) => '(s', r) <- net_io _ ne s;;
+      | (|||le|) =>
+        match le in logE T return (T -> _) -> _ with
+        | Log str => fun k => prerr_endline ("Tester: " ++ str);;
+                          execute' fuel s (k tt)
+        end k
+      | (||||ne) => '(s', r) <- net_io _ ne s;;
                   execute' fuel s' (k r)
       end
     end
