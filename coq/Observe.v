@@ -11,7 +11,7 @@ Variant observeE : Type -> Set :=
   Observe__Send : connT -> observeE packetT
 | Observe__Recv : observeE packetT.
 
-Definition conns : list connT := seq 1 9.
+Definition conns : list connT := seq 1 1.
 
 Definition failureE := exceptE string.
 

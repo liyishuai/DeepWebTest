@@ -46,9 +46,19 @@ Definition tcp {E} `{Is__nE E} : itree E void :=
                  (ret (in_pkt, pkt :: out_pkt, f))
             else ret (pkt :: in_pkt, out_pkt, f))
          (ret ([], [], const true)) in_pkt1;;
-     (* embed Log ("Ready: " ++ to_string out_pkt2);; *)
-     fold_right (fun pkt r => r;;
-                           (* embed Log ("Send " ++ to_string pkt);; *)
-                           embed Net__Send pkt) (ret tt) out_pkt2;;
-     (* embed Log ("Delayed: " ++ to_string in_pkt2);; *)
-     call in_pkt2) [].
+     match out_pkt2 with
+     | [] =>
+       match rev' in_pkt2 with
+       | [] => call []
+       | pkt :: in_pkt3 =>
+         embed Net__Send pkt;;
+         call (rev' in_pkt3)
+       end
+     | _ :: _ =>
+       (* embed Log ("Ready: " ++ to_string out_pkt2);; *)
+       fold_right (fun pkt r => r;;
+                              (* embed Log ("Send " ++ to_string pkt);; *)
+                              embed Net__Send pkt) (ret tt) out_pkt2;;
+       (* embed Log ("Delayed: " ++ to_string in_pkt2);; *)
+       call in_pkt2
+     end) [].
