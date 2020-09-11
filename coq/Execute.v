@@ -197,7 +197,7 @@ Fixpoint execute' {R} (fuel : nat) (s : conn_state) (m : itree tE R) : IO bool :
 
 Definition execute {R} (m : itree tE R) : IO bool :=
   cs <- client_init;;
-  execute' 50000 cs m.
+  execute' 500000 cs m.
 
 Definition test : itree netE void -> IO bool :=
   execute ∘ tester ∘ observer ∘ compose_switch tcp.

@@ -25,6 +25,9 @@ CoFixpoint match_event {T R} (e0 : observeE R) (r : R) (m : itree oE T)
                (* embed Log ("Mismatch Send: expect to " ++ to_string c *)
                (*         ++ ", but observed to " ++ to_string c0);; *)
                throw "Sent from different connection"
+      | Observe__Select, Observe__Select =>
+        fun k cs =>
+          k cs
       | Observe__Recv, Observe__Recv =>
         fun k pkt =>
           (* embed Log ("Match Recv " ++ to_string pkt);; *)
@@ -42,6 +45,8 @@ Class Is__tE E `{genE -< E} `{nondetE -< E}
       `{failureE -< E} `{logE -< E} `{netE -< E}.
 Notation tE := (genE +' nondetE +' failureE +' logE +' netE).
 Instance tE_Is__tE : Is__tE tE. Defined.
+
+Definition conns : list connT := seq 1 9.
 
 CoFixpoint tester' {E R} `{Is__tE E} (others : list (itree oE R)) (m : itree oE R)
   : itree E R :=
@@ -77,6 +82,10 @@ CoFixpoint tester' {E R} `{Is__tE E} (others : list (itree oE R)) (m : itree oE 
       end k
     | (||||oe) =>
       match oe in observeE Y return (Y -> _) -> _ with
+      | Observe__Select =>
+        fun k =>
+          cs <- fst <$> sublist conns;;
+          Tau (tester' (match_observe Observe__Select cs others) (k cs))
       | Observe__Send c =>
         fun k =>
           pkt <- embed Gen c;;

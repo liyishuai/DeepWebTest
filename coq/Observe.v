@@ -9,9 +9,8 @@ Global Open Scope sum_scope.
 
 Variant observeE : Type -> Set :=
   Observe__Send : connT -> observeE packetT
+| Observe__Select : observeE (list (connT))
 | Observe__Recv : observeE packetT.
-
-Definition conns : list connT := seq 1 1.
 
 Definition failureE := exceptE string.
 
@@ -22,8 +21,8 @@ Instance oE_Is__oE : Is__oE oE. Defined.
 
 Definition dualize {E R} `{Is__oE E} (e : netE R) : itree E R :=
   match e in netE R return _ R with
-  | Net__Select => cs <- fst <$> sublist conns;;
-                (* embed Log ("Selected " ++ to_string cs);; *)
+  | Net__Select => cs <- trigger Observe__Select;;
+                embed Log ("Selected " ++ to_string cs);;
                 ret cs
   | Net__Recv c => pkt <- embed Observe__Send c;;
                 (* embed Log ("Sent " ++ to_string pkt);; *)
