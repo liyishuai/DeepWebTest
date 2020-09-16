@@ -1,18 +1,10 @@
-From ITree Require Export
-     Exception.
 From DeepWeb Require Export
-     Common
      Switch.
-Export
-  SumNotations.
-Global Open Scope sum_scope.
 
 Variant observeE : Type -> Set :=
   Observe__Send : connT -> observeE packetT
 | Observe__Select : observeE (list (connT))
 | Observe__Recv : observeE packetT.
-
-Definition failureE := exceptE string.
 
 Class Is__oE E `{failureE -< E} `{nondetE -< E}
       `{decideE -< E} `{logE -< E} `{observeE -< E}.

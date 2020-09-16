@@ -1,8 +1,3 @@
-From SimpleIO Require Export
-     IO_Random
-     SimpleIO.
-From ITreeIO Require Export
-     ITreeIO.
 From DeepWeb Require Export
      Observe.
 
@@ -41,12 +36,13 @@ CoFixpoint match_event {T R} (e0 : observeE R) (r : R) (m : itree oE T)
 Definition match_observe {T R} (e : observeE T) (r : T) (l : list (itree oE R))
   : list (itree oE R) := map (match_event e r) l.
 
+Variant genE : Type -> Set :=
+  Gen : connT -> genE packetT.
+
 Class Is__tE E `{genE -< E} `{nondetE -< E}
       `{failureE -< E} `{logE -< E} `{netE -< E}.
 Notation tE := (genE +' nondetE +' failureE +' logE +' netE).
 Instance tE_Is__tE : Is__tE tE. Defined.
-
-Definition conns : list connT := seq 1 9.
 
 CoFixpoint tester' {E R} `{Is__tE E} (others : list (itree oE R)) (m : itree oE R)
   : itree E R :=

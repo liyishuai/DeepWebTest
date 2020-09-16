@@ -1,8 +1,5 @@
-From DeepWeb Require Import
+From DeepWeb Require Export
      Common.
-
-Variant logE : Type -> Set :=
-  Log : string -> logE unit.
 
 Class Is__nE E `{nondetE -< E} `{logE -< E} `{netE -< E}.
 Notation nE := (nondetE +' logE +' netE).

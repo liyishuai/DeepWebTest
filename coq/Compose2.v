@@ -1,15 +1,13 @@
 From DeepWeb Require Import
-     Common
-     Switch.
-Import
+     Switch2.
+Export
   SumNotations.
-Open Scope list_scope.
-Global Open Scope sum_scope.
+Open Scope sum_scope.
 
-CoFixpoint compose' {E T} `{Is__nE E}
+CoFixpoint compose' {E T} `{Is__sE E}
            (bfi bfo : list packetT)
-           (net     : itree nE T)
-           (app     : itree netE T) : itree E T :=
+           (net : itree sE T)
+           (app : itree netE T) : itree E T :=
   match observe net, observe app with
   | RetF r, _
   | _, RetF r => Ret r
@@ -18,44 +16,37 @@ CoFixpoint compose' {E T} `{Is__nE E}
   | VisF vn kn, VisF va ka =>
     let step__net :=
         match vn with
-        | (e|) =>
-          match e in nondetE Y return (Y -> _) -> _ with
+        | (ne|) =>
+          match ne in nondetE Y return (Y -> _) -> _ with
           | Or =>
             fun k =>
               b <- trigger Or;;
               Tau (compose' bfi bfo (k b) app)
           end kn
-        | (|e|) =>
-          match e in logE Y return (Y -> _) -> _ with
+        | (|le|) =>
+          match le in logE Y return (Y -> _) -> _ with
           | Log str =>
             fun k =>
               embed Log ("Switch: " ++ str)%string;;
               Tau (compose' bfi bfo (k tt) app)
           end kn
-        | (||e) =>
-          match e in netE Y return (Y -> _) -> _ with
-          | Net__Select =>
+        | (||se) =>
+          match se in switchE Y return (Y -> _) -> _ with
+          | Switch__In =>
             fun k =>
-              conns <- trigger Net__Select;;
-              Tau (compose' bfi bfo (k (map packet__src bfo ++ conns)) app)
-          | Net__Recv c =>
-            fun k =>
-              if conn_is_app c
-              then
-                match pick (Nat.eqb c ∘ packet__src) bfo with
-                | Some (pkt, bo') =>
-                  Tau (compose' bfi bo' (k pkt) app)
-                | None            => ITree.spin (* should not happen *)
-                end
-              else
-                pkt <- embed Net__Recv c;;
-                Tau (compose' bfi bfo (k pkt) app)
-          | Net__Send pkt =>
+              match bfo with
+              | [] =>
+                pkt <- trigger Switch__In;;
+                Tau (compose' bfi [] (k pkt) app)
+              | pkt :: bo' =>
+                Tau (compose' bfi bo' (k pkt) app)
+              end
+          | Switch__Out pkt =>
             fun k =>
               if conn_is_app (packet__dst pkt)
               then Tau (compose' (bfi ++ [pkt]) bfo (k tt) app)
               else
-                embed Net__Send pkt;;
+                embed Switch__Out pkt;;
                 Tau (compose' bfi bfo (k tt) app)
           end kn
         end in
@@ -65,9 +56,7 @@ CoFixpoint compose' {E T} `{Is__nE E}
           fun k =>
             let cs : list connT := map packet__src bfi in
             match cs with
-            | [] =>
-              (* embed Log ("App selected nothing, step net");; *)
-              step__net
+            | [] => step__net
             | _ :: _ => Tau (compose' bfi bfo net (k cs))
             end
         | Net__Recv c =>
@@ -76,7 +65,6 @@ CoFixpoint compose' {E T} `{Is__nE E}
             | Some (pkt, bi') =>
               Tau (compose' bi' bfo net (k pkt))
             | None =>
-              (* embed Log ("App received nothing, step net");; *)
               step__net
             end
         | Net__Send pkt =>
@@ -85,6 +73,5 @@ CoFixpoint compose' {E T} `{Is__nE E}
     step__app
   end.
 
-Definition compose_switch {E T} `{Is__nE E}
-  : itree nE T -> itree netE T -> itree E T :=
-  compose' [] [].
+Definition compose_switch {E T} `{Is__sE E}
+  : itree sE T -> itree netE T -> itree E T := compose' [] [].

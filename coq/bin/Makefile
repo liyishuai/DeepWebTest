@@ -1,8 +1,9 @@
 all: clean
 	$(MAKE) -C ..
 	$(MAKE) Echo1.native
-	$(MAKE) EchoTest.native
+	$(MAKE) EchoTest2.native
 	$(MAKE) EchoServer.native
+	$(MAKE) EchoTest.native
 	$(MAKE) Client1.native
 	$(MAKE) Echo0.native
 

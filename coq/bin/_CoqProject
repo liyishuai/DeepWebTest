@@ -2,6 +2,7 @@
 
 EchoServer.v
 EchoTest.v
+EchoTest2.v
 Echo0.v
 Echo1.v
 Client1.v

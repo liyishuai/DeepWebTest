@@ -1,6 +1,7 @@
 From Coq Require Export
      Ascii
      Basics
+     ExtrOcamlIntConv
      List
      String
      ZArith
@@ -13,17 +14,42 @@ From ExtLib Require Export
      Functor
      Monad.
 From ITree Require Export
+     Exception
      Nondeterminism
      ITree.
+From SimpleIO Require Export
+     IO_Bytes
+     IO_Float
+     IO_Random
+     IO_Unix
+     IO_Sys
+     SimpleIO.
+From ITreeIO Require Export
+     ITreeIO.
 Export
   FunNotation
   FunctorNotation
   ListNotations
+  Monads
+  SumNotations
   MonadNotation.
 Global Open Scope bool_scope.
 Global Open Scope monad_scope.
 Global Open Scope nat_scope.
 Global Open Scope program_scope.
+Global Open Scope sum_scope.
+
+Fixpoint pick {A} (f : A -> bool) (l : list A) : option (A * list A) :=
+  match l with
+  | [] => None
+  | a :: tl =>
+    if f a
+    then Some (a, tl)
+    else match pick f tl with
+         | Some (x, l') => Some (x, a :: l')
+         | None => None
+         end
+  end.
 
 Definition sublist {E A} `{nondetE -< E} : list A -> itree E (list A * list A) :=
   fold_right
@@ -36,6 +62,7 @@ Variant decideE : Type -> Set :=
   Decide : decideE bool.
 
 Notation connT    := nat.
+Definition conns : list connT := seq 1 9.
 Definition conn_is_app : connT -> bool :=
   Nat.eqb O.
 
@@ -70,5 +97,9 @@ Variant netE : Type -> Set :=
 | Net__Recv   : connT -> netE packetT
 | Net__Send   : packetT -> netE unit.
 
-Variant genE : Type -> Set :=
-  Gen : connT -> genE packetT.
+Variant logE : Type -> Set :=
+  Log : string -> logE unit.
+
+Definition failureE := exceptE string.
+
+Coercion int_of_nat : nat >-> int.
