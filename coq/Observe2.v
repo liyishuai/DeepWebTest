@@ -12,7 +12,7 @@ Instance oE_Is__oE : Is__oE oE. Defined.
 
 Definition dualize {E R} `{Is__oE E} (e : switchE R) : itree E R :=
   match e in switchE R return _ R with
-  | Switch__In      => trigger Observe__Send
+  | Switch__In    => trigger Observe__Send
   | Switch__Out p =>
     p0 <- trigger Observe__Recv;;
     if eqb_packet p p0

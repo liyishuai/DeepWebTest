@@ -32,18 +32,26 @@ Definition tcp {E T} `{Is__sE E} : itree E T :=
              (ret ([], [], const true)) in_pkt0;;
          match out_pkt1 with
          | _ :: _ =>
-           fold_right (fun pkt r => r;;
-                                  embed Switch__Out pkt) (ret tt) out_pkt1;;
+           fold_right (fun pkt r =>
+                         r;;
+                         embed Switch__Out pkt) (ret tt) out_pkt1;;
            call in_pkt1
          | [] =>
            match rev' in_pkt1 with
            | [] => input
            | pkt :: in_pkt2 =>
              embed Switch__Out pkt;;
-             call in_pkt2
+             call (rev' in_pkt2)
            end
          end in
      match in_pkt0 with
      | []    => input
      | _ :: _ => or input output
      end) [].
+
+(** Let n    be the length of [in_pkt0];
+    Let f(n) be the number of following branches without [input];
+    We then have: f(n) < 2^n * f(n-1)
+    Therefore:    f(n) = O(2^(n^2))
+    The lower bound of f(n) is n! which is O(2^(n * log n))
+ *)

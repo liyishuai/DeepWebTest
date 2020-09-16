@@ -56,6 +56,6 @@ Definition tcp {E} `{Is__nE E} : itree E void :=
        | [] => call []
        | pkt :: in_pkt3 =>
          embed Net__Send pkt;;
-         call in_pkt3
+         call (rev' in_pkt3)
        end
      end) [].
