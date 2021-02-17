@@ -29,8 +29,9 @@ jobs:
           command: opam list
       - run:
           name: Compile
-          working_directory: coq
-          command: make -j`nproc`
+          command: |
+            make -j`nproc` -C echo
+            make -j`nproc` -C backtrack
 
 workflows:
   version: 2
@@ -45,6 +46,9 @@ workflows:
       - build:
           name: Coq 8.12
           coq: '8.12'
+      - build:
+          name: Coq 8.13
+          coq: '8.13'
       - build:
           name: Coq dev
           coq: 'dev'
