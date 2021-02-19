@@ -1,0 +1,18 @@
+COQMAKEFILE?=Makefile.coq
+
+all: $(COQMAKEFILE)
+	@+$(MAKE) -f $(COQMAKEFILE) all
+
+clean: $(COQMAKEFILE)
+	@+$(MAKE) -f $(COQMAKEFILE) cleanall
+	@rm -f $(COQMAKEFILE) $(COQMAKEFILE).conf
+
+$(COQMAKEFILE): _CoqProject
+	$(COQBIN)coq_makefile -f _CoqProject -o $(COQMAKEFILE)
+
+force _CoqProject Makefile: ;
+
+%: $(COQMAKEFILE) force
+	@+$(MAKE) -f $(COQMAKEFILE) $@
+
+.PHONY: all clean force

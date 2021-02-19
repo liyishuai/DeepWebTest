@@ -1,0 +1,6 @@
+-Q theories CAS
+-arg -w -arg -solve_obligation_error
+
+theories/Common.v
+theories/Message.v
+theories/App.v

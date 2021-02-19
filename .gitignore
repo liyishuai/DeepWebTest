@@ -37,3 +37,4 @@ Makefile.coq
 *.ml
 *.mli
 _build
+*~
