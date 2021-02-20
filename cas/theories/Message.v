@@ -7,7 +7,7 @@ From Coq Require Export
 Export
   ListNotations.
 Open Scope string_scope.
-Open Scope Z_scope.
+Local Open Scope Z_scope.
 
 Notation key   := string.
 Notation tag   := string.
@@ -42,6 +42,9 @@ Instance Serialize__responseT {exp_} `{Serialize (exp_ string)}
     | Response__NoContent   => Atom "NoContent"
     | Response__PreconditionFailed => Atom "PreconditionFailed"
     end%sexp.
+
+Instance Serialize__idString : Serialize (id string) :=
+  fun (s : string) => to_sexp s.
 
 Instance Deserialize__requestT : Deserialize requestT :=
   Deser.match_con "request" []
