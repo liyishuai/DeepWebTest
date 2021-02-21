@@ -1,11 +1,11 @@
-From CAS Require Export
-     Common.
 From Ceres Require Export
      Ceres.
 From Coq Require Export
      List
      String
      ZArith.
+From CAS Require Export
+     Common.
 Export
   ListNotations.
 Open Scope string_scope.

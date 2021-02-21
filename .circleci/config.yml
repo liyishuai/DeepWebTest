@@ -30,6 +30,7 @@ jobs:
       - run:
           name: Compile
           command: |
+            make -j`nproc` -C cas
             make -j`nproc` -C echo
             make -j`nproc` -C backtrack
 

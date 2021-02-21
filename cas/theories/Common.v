@@ -6,8 +6,7 @@ From Coq Require Export
      Bool
      DecidableClass
      String
-     List
-     BinNat.
+     List.
 Export
   ListNotations.
 Open Scope lazy_bool_scope.
@@ -25,12 +24,10 @@ Next Obligation.
   - erewrite Decidable_sound_alt; intuition.
 Qed.
 
-Instance Decidable_eq_N (x y : N) : Decidable (x = y) :=
-  { Decidable_witness := N.eqb    x y;
-    Decidable_spec    := N.eqb_eq x y }.
+Notation "'Decidable_eq' A" := (forall x y : A, Decidable (x = y)) (at level 200).
 
-Program Instance Decidable_eq_list {A} `{forall x y : A, Decidable (x = y)}
-        (x y : list A) : Decidable (x = y) := {
+Program Instance Decidable_eq_list {A} `{Decidable_eq A}
+  : Decidable_eq (list A) := {
   Decidable_witness :=
     (fix eqb (x y : list A) :=
        match x, y with
@@ -54,27 +51,27 @@ Next Obligation.
     + apply IHx. reflexivity.
 Qed.
 
-Instance Decidable_eq_string (s1 s2 : string) : Decidable (s1 = s2) :=
-  { Decidable_witness := String.eqb    s1 s2;
-    Decidable_spec    := String.eqb_eq s1 s2 }.
+Instance Decidable_eq_string : Decidable_eq string :=
+  { Decidable_witness := String.eqb    x y;
+    Decidable_spec    := String.eqb_eq x y }.
 
-Program Instance Decidable_eq_option {A} `{forall x y : A, Decidable (x = y)}
-        (ox oy : option A) : Decidable (ox = oy) := {
+Program Instance Decidable_eq_option {A} `{Decidable_eq A}
+  : Decidable_eq (option A) := {
   Decidable_witness :=
-    match ox, oy with
+    match x, y with
     | Some x, Some y => x = y?
     | None  , None   => true
     | _     , _      => false
     end }.
 Solve Obligations with split; intuition; discriminate.
 Next Obligation.
-  destruct ox, oy; intuition; try discriminate;
+  destruct x, y; intuition; try discriminate;
     f_equal; apply Decidable_spec; intuition.
   inversion H0; reflexivity.
 Qed.
 
-Program Instance Decidable_eq_sum {A B} `{forall x y : A, Decidable (x = y)}
-        `{forall x y : B, Decidable (x = y)} (x y : A + B) : Decidable (x = y) := {
+Program Instance Decidable_eq_sum {A B} `{Decidable_eq A} `{Decidable_eq B}
+  : Decidable_eq (A + B) := {
   Decidable_witness :=
     match x, y with
     | inl x, inl y
@@ -87,8 +84,8 @@ Next Obligation.
     apply Decidable_spec; intuition.
 Qed.
 
-Program Instance Decidable_eq_prod {A B} `{forall x y : A, Decidable (x = y)}
-        `{forall x y : B, Decidable (x = y)} (x y : A * B) : Decidable (x = y) := {
+Program Instance Decidable_eq_prod {A B} `{Decidable_eq A} `{Decidable_eq B}
+  : Decidable_eq (A * B) := {
   Decidable_witness :=
     let (xa, xb) := x in
     let (ya, yb) := y in
@@ -102,18 +99,18 @@ Next Obligation.
     intuition; apply Decidable_spec; reflexivity.
 Qed.
 
-Definition get {K V} `{forall x y : K, Decidable (x = y)} (k : K) :
+Definition get {K V} `{Decidable_eq K} (k : K) :
   list (K * V) -> option V :=
   fmap snd ∘ find ((fun kv => k = fst kv?)).
 
-Definition delete {K V} `{forall x y : K, Decidable (x <> y)} (k : K) :
+Definition delete {K V} `{Decidable_eq K} (k : K) :
   list (K * V) -> list (K * V) :=
   filter (fun kv => (k <> fst kv?)).
 
 Definition put {K V} : K -> V -> list (K * V) -> list (K * V) :=
   compose cons ∘ pair.
 
-Definition update {K V} `{forall x y : K, Decidable (x <> y)} (k : K) (v : V)
+Definition update {K V} `{Decidable_eq K} (k : K) (v : V)
   : list (K * V) -> list (K * V) :=
   put k v ∘ delete k.
 

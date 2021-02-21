@@ -1,6 +1,5 @@
 From CAS Require Export
-     Message
-     Common.
+     Message.
 From ITree Require Export
      ITree.
 From ExtLib Require Export
@@ -11,12 +10,22 @@ Export
   MonadNotation.
 Open Scope monad_scope.
 
-Notation var := N.
+Notation var := nat.
 
 Inductive exp : Type -> Set :=
   Exp__Const : string -> exp string
 | Exp__Var   : var    -> exp string
 | Exp__Match : tag -> exp tag -> exp bool.
+
+Fixpoint exp_to_sexp {T} (e : exp T) : sexp :=
+    match e with
+    | Exp__Const s    => [Atom "Constant"; to_sexp s]
+    | Exp__Var   v    => [Atom "Variable"; to_sexp v]
+    | Exp__Match f fx => [Atom "Matching"; to_sexp f; exp_to_sexp fx]
+    end.
+
+Instance Serialize__exp {T} : Serialize (exp T) :=
+  exp_to_sexp.
 
 Definition server_state exp_ :=
   list (key * (exp_ tag * exp_ value)).
