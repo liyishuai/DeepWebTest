@@ -87,6 +87,21 @@ Next Obligation.
     apply Decidable_spec; intuition.
 Qed.
 
+Program Instance Decidable_eq_prod {A B} `{forall x y : A, Decidable (x = y)}
+        `{forall x y : B, Decidable (x = y)} (x y : A * B) : Decidable (x = y) := {
+  Decidable_witness :=
+    let (xa, xb) := x in
+    let (ya, yb) := y in
+    (xa = ya?) &&& (xb = yb?) }.
+Next Obligation.
+  intuition.
+  - apply andb_true_iff in H1.
+    f_equal; apply Decidable_spec; intuition.
+  - apply andb_true_iff.
+    inversion H1.
+    intuition; apply Decidable_spec; reflexivity.
+Qed.
+
 Definition get {K V} `{forall x y : K, Decidable (x = y)} (k : K) :
   list (K * V) -> option V :=
   fmap snd ∘ find ((fun kv => k = fst kv?)).
