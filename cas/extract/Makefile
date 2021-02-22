@@ -1,6 +1,6 @@
 COQMAKEFILE?=Makefile.coq
 
-all:
+all: clean
 	$(RM) TestCAS.native CasServer.native
 	$(MAKE) CasServer.native
 	$(MAKE) TestCAS.native 

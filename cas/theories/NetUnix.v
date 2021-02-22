@@ -37,33 +37,32 @@ Definition conn_of_fd (fd : file_descr)
 Notation BUFFER_SIZE := 1024.
 Definition SELECT_TIMEOUT := OFloat.Unsafe.of_string "0".
 
-Definition recv_bytes' : stateT conn_state IO bool :=
+Definition recv_bytes : stateT conn_state IO unit :=
   mkStateT
     (fun s =>
        '(fds, _, _) <- select (map (fst ∘ snd) s) [] [] SELECT_TIMEOUT;;
-       fold_left
-         (fun _bs0 fd =>
-            '(b, s0) <- _bs0;;
-            match conn_of_fd fd s0 with
-            | Some (c, (fd, str0)) =>
-              buf <- OBytes.create BUFFER_SIZE;;
-              len <- recv fd buf int_zero BUFFER_SIZE [];;
-              if len <? int_zero
-              then close fd;; _bs0
-              else if len =? int_zero
-                   then _bs0
-                   else str <- from_ostring <$> OBytes.to_string buf;;
-                        let str1 : string := substring 0 (nat_of_int len) str in
-                        ret (true, update c (fd, str0 ++ str1) s0)
-            | None => _bs0
-            end)%int fds (ret (false, s))).
-
-Definition recv_bytes : stateT conn_state IO unit :=
-  mkStateT
-    (IO.fix_io
-       (fun recv_rec s =>
-          '(b, s') <- runStateT recv_bytes' s;;
-          if b : bool then recv_rec s' else ret (tt, s'))).
+       IO.fix_io
+         (fun recv_rec fds =>
+            match fds with
+            | [] => ret (tt, s)
+            | fd :: fds' =>
+              match conn_of_fd fd s with
+              | Some (c, (fd, str0)) =>
+                buf <- OBytes.create BUFFER_SIZE;;
+                len <- recv fd buf int_zero BUFFER_SIZE [];;
+                if len <? int_zero
+                then close fd;;
+                     ret (tt, delete c s)
+                else if len =? int_zero
+                     then recv_rec fds'
+                     else str <- from_ostring <$> OBytes.to_string buf;;
+                          let str1 : string := substring 0 (nat_of_int len) str in
+                          prerr_endline ("Received " ++ str1
+                                         ++ " from " ++ to_string c);;
+                          ret (tt, update c (fd, str0 ++ str1) s)
+              | None => failwith "Should not happen"
+              end
+            end)%int (rev' fds)).
 
 Definition try {a b} (f : IO a) (g : IO b) : IO (option a) :=
   catch_error (Some <$> f) $ fun e m _ => g;; ret None.

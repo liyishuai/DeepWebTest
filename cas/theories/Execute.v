@@ -21,7 +21,7 @@ Definition gen_request (ss : server_state exp) (es : exp_state)
      | Exp__Var   x =>
        match get x es with
        | Some (inl t)      => ret $ Request__GET k t
-       | Some (inr (t0::_ as ts)) => Request__GET k <$> io_choose ts
+       | Some (inr ((t0::_) as ts)) => Request__GET k <$> io_choose ts
        | Some (inr []) | None    => Request__GET k <$> gen_string
        end
      | Exp__Match _ _ => Request__GET k <$> gen_string
@@ -36,7 +36,7 @@ Definition gen_request (ss : server_state exp) (es : exp_state)
      | Exp__Var   x =>
        match get x es with
        | Some (inl t) => Request__CAS k t <$> gen_string
-       | Some (inr (t0::_ as ts)) =>
+       | Some (inr ((t0::_) as ts)) =>
          liftA2 (Request__CAS k) (io_choose ts) gen_string
        | Some (inr []) | None => liftA2 (Request__CAS k) gen_string gen_string
        end
@@ -51,7 +51,7 @@ Definition gen_request (ss : server_state exp) (es : exp_state)
      | Exp__Const t => Request__GET k <$> gen_string
      | Exp__Var   x =>
        match get x es with
-       | Some (inr (t0::_ as ts)) => Request__GET k <$> io_choose ts
+       | Some (inr ((t0::_) as ts)) => Request__GET k <$> io_choose ts
        | _                       => Request__GET k <$> gen_string
        end
      | Exp__Match _ _ => Request__GET k <$> gen_string
@@ -64,7 +64,7 @@ Definition gen_request (ss : server_state exp) (es : exp_state)
      match tx with
      | Exp__Var   x =>
        match get x es with
-       | Some (inr (t0::_ as ts)) =>
+       | Some (inr ((t0::_) as ts)) =>
              liftA2 (Request__CAS k) (io_choose ts) gen_string
        | _ => liftA2 (Request__CAS k)  gen_string       gen_string
        end
