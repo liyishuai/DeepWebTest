@@ -64,7 +64,7 @@ Definition cas_smi {E R} `{Is__smE E} : itree E R :=
            | None =>
              tx <- trigger Sym__Fresh;;
              vx <- trigger Sym__Fresh;;
-             f tx vx (put k (tx, vx) st)
+             f tx vx (update k (tx, vx) st)
            end in
        '(c, req) <- embed App__Recv st;;
        match req with
@@ -80,7 +80,7 @@ Definition cas_smi {E R} `{Is__smE E} : itree E R :=
              ifx (Exp__Match t tx)
                  (embed App__Send c Response__NoContent;;
                   tx1 <- trigger Sym__Fresh;;
-                  ret (put k (tx1, Exp__Const v) st1))
+                  ret (update k (tx1, Exp__Const v) st1))
                  (embed App__Send c Response__PreconditionFailed;;
                   ret st1) in
          handle k cas_handler

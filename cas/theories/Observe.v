@@ -1,11 +1,12 @@
-From CAS Require Export
-     Net.
 From ITree Require Export
      Exception.
 From ExtLib Require Export
      Extras.
+From CAS Require Export
+     Net.
 Export
   FunNotation.
+Open Scope string_scope.
 
 Variant observeE : Type -> Type :=
   Observe__ToServer   : server_state exp -> observeE (packetT id)

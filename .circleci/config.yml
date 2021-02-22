@@ -23,7 +23,7 @@ jobs:
           command: |
               opam repo add coq-extra-dev https://coq.inria.fr/opam/extra-dev
               opam update
-              opam install coq-ceres coq-itree-io
+              opam install coq-parsec coq-itree-io
       - run:
           name: List installed packages
           command: opam list
@@ -38,9 +38,6 @@ workflows:
   version: 2
   test:
     jobs:
-      - build:
-          name: Coq 8.10
-          coq: '8.10'
       - build:
           name: Coq 8.11
           coq: '8.11'

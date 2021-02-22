@@ -8,7 +8,7 @@ Definition fresh_var {T} (vs : list (var * T)) : var :=
 
 Definition fresh_value (s : exp_state) : exp_state * var :=
   let x := fresh_var s in
-  (put x (inr []) s, x).
+  (update x (inr []) s, x).
 
 Definition assert (x : var) (v : string) (s : exp_state) : string + exp_state :=
   let ov := get x s in
@@ -17,8 +17,8 @@ Definition assert (x : var) (v : string) (s : exp_state) : string + exp_state :=
   match ov with
   | Some (inl v0) => if v =? v0 then inr s else err
   | Some (inr vs) => if existsb (String.eqb v) vs
-                    then err else inr $ put x (inl v) s
-  | None          => inr $ put x (inl v) s
+                    then err else inr $ update x (inl v) s
+  | None          => inr $ update x (inl v) s
   end.
 
 Definition assert_not (x : var) (v : string) (s : exp_state)
@@ -30,8 +30,8 @@ Definition assert_not (x : var) (v : string) (s : exp_state)
   | Some (inl v0) => if v =? v0 then err else inr s
   | Some (inr vs) => if existsb (String.eqb v) vs
                     then inr s
-                    else inr $ put x (inr (v :: vs)) s
-  | None          => inr $ put x (inr [v]) s
+                    else inr $ update x (inr (v :: vs)) s
+  | None          => inr $ update x (inr [v]) s
   end.
 
 Definition unify {T} (e : exp T) (v : T) (s : exp_state) : string + exp_state :=
@@ -95,17 +95,13 @@ Definition instantiate_observe {E R} `{Is__stE E} (e : observeE R)
                            Ret (s, pkt)
     end.
 
-Definition liftState {S A} {F : Type -> Type} `{Functor F} (aF : F A)
-  : Monads.stateT S F A :=
-  fun s : S => pair s <$> aF.
-
 Definition unifier' {E R} `{Is__stE E} (m : itree oE R)
   : Monads.stateT exp_state (itree E) R :=
   interp
     (fun _ e =>
        match e with
        | (Throw err|) => fun s => throw err
-       | (|de|)       => liftState $ trigger de
+       | (|de|)       => Monads.liftState $ trigger de
        | (||ue|)       => instantiate_unify ue
        | (|||oe)      => instantiate_observe oe
        end) m.

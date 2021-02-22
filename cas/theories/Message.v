@@ -56,24 +56,26 @@ Instance Serialize__responseT {exp_} `{Serialize (exp_ string)}
   : Serialize (responseT exp_) :=
   fun m =>
     match m with
-    | Response__NotModified => Atom "NotModified"
+    | Response__NotModified => [Atom "NotModified"]
     | Response__OK t v      => [Atom "OK"; to_sexp t; to_sexp v]
-    | Response__NoContent   => Atom "NoContent"
-    | Response__PreconditionFailed => Atom "PreconditionFailed"
+    | Response__NoContent   => [Atom "NoContent"]
+    | Response__PreconditionFailed => [Atom "PreconditionFailed"]
     end%sexp.
 
 Instance Serialize__idString : Serialize (id string) :=
   fun (s : string) => to_sexp s.
+
+Instance Deserialize__idString : Deserialize (id string) :=
+  Deserialize_string.
 
 Instance Deserialize__requestT : Deserialize requestT :=
   Deser.match_con "request" []
     [ ("GET", Deser.con2_ Request__GET)
     ; ("CAS", Deser.con3_ Request__CAS)].
 
-Instance Deserialize__responseT {exp_} `{Deserialize (exp_ string)}
-  : Deserialize (responseT exp_) :=
-  Deser.match_con "response"
-    [ ("NotModified"       , Response__NotModified       )
-    ; ("NoContent"         , Response__NoContent         )
-    ; ("PreconditionFailed", Response__PreconditionFailed)]
-    [ ("OK", Deser.con2_ Response__OK)].
+Instance Deserialize__responseT : Deserialize (responseT id) :=
+  Deser.match_con "response" []
+    [ ("NotModified"       , Deser.con0 Response__NotModified       )
+    ; ("NoContent"         , Deser.con0 Response__NoContent         )
+    ; ("PreconditionFailed", Deser.con0 Response__PreconditionFailed)
+    ; ("OK", Deser.con2_ Response__OK)].
