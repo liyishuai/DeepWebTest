@@ -209,9 +209,8 @@ Definition execute {R} (m : itree tE R) (script : list nat) : IO (bool * list na
 Fixpoint shrink_list {A} (l : list A) : list (list A) :=
   match l with
   | [] => []
-  | a :: l' =>
-    let sl' := shrink_list l' in
-    sl' ++ cons a <$> sl'
+  | a :: l' => let sl' := shrink_list l' in
+             l' :: sl' ++ cons a <$> sl'
   end.
 
 Definition shrink_execute' {R} (m : itree tE R) (script : list nat)
@@ -231,12 +230,7 @@ Definition shrink_execute {R} (m : itree tE R) : IO bool :=
   '(b, s) <- execute m [];;
   if b : bool
   then ret true
-  else IO.fix_io
-         (fun shrink_rec s0 =>
-            os <- shrink_execute' m s0;;
-            if os is Some s1
-            then shrink_rec s1
-            else ret false) s.
+  else IO.while_loop (shrink_execute' m) s;; ret false.
 
 Definition test {R} : itree smE R -> IO bool :=
   shrink_execute ∘ tester ∘ observer ∘ compose_switch tcp.

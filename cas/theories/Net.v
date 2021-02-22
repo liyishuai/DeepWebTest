@@ -6,9 +6,7 @@ From ITree Require Export
 From Coq Require Export
      List.
 Export
-  SumNotations
   IfNotations.
-Open Scope sum_scope.
 
 Variant connT :=
   Conn__Client (c : clientT)

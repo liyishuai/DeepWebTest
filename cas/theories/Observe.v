@@ -1,11 +1,7 @@
 From ITree Require Export
      Exception.
-From ExtLib Require Export
-     Extras.
 From CAS Require Export
      Net.
-Export
-  FunNotation.
 Open Scope string_scope.
 
 Variant observeE : Type -> Type :=

@@ -4,6 +4,7 @@
 theories/Common.v
 theories/Message.v
 theories/App.v
+theories/Server.v
 theories/Net.v
 theories/Observe.v
 theories/Tester.v

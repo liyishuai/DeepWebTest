@@ -1,13 +1,17 @@
-From CAS Require Export
-     Message.
 From ITree Require Export
      ITree.
 From ExtLib Require Export
+     Extras
      Functor
      Monad.
+From CAS Require Export
+     Message.
 Export
   FunctorNotation
+  FunNotation
+  SumNotations
   MonadNotation.
+Open Scope sum_scope.
 Open Scope monad_scope.
 
 Notation var := nat.
