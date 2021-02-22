@@ -1,14 +1,23 @@
+From SimpleIO Require Export
+     IO_Random
+     SimpleIO.
+From Parsec Require Export
+     Parser.
 From ExtLib Require Export
      Functor
      Option.
 From Coq Require Export
+     Ascii
      Basics
      Bool
      DecidableClass
+     ExtrOcamlIntConv
      String
      List.
 Export
   ListNotations.
+Open Scope string_scope.
+Open Scope parser_scope.
 Open Scope lazy_bool_scope.
 Open Scope program_scope.
 
@@ -125,3 +134,48 @@ Fixpoint pick {A} (f : A -> bool) (l : list A) : option (A * list A) :=
          | None => None
          end
   end.
+
+Fixpoint parseParens' (depth : nat) : parser string :=
+  match depth with
+  | O => raise None
+  | S depth =>
+    prefix <- string_of_list_ascii <$> untilMulti ["(";")"]%char;;
+    r <- anyToken;;
+    match r with
+    | ")"%char => ret $ prefix ++ ")"
+    | "("%char =>
+      append prefix ∘ String r <$>
+             liftA2 append (parseParens' depth) (parseParens' depth)
+    | _ => raise $ Some "Should not happen"
+    end
+  end.
+
+Definition parseParens : parser string :=
+  liftA2 String (expect "("%char) $ parseParens' bigNumber.
+
+Definition io_choose' {A} (l : list A) : IO (nat * A) :=
+  match l with
+  | [] => failwith "Cannot choose from empty list"
+  | a :: _ =>
+    i <- nat_of_int <$> ORandom.int (int_of_nat (length l));;
+    ret (i, nth i l a)
+  end.
+
+Definition io_choose {A} : list A -> IO A :=
+  fmap snd ∘ io_choose'.
+
+Definition gen_string' : IO string :=
+  io_choose ["Hello"; "World"].
+
+Definition io_or {A} (x y : IO A) : IO A :=
+  b <- ORandom.bool tt;;
+  if b : bool then x else y.
+
+Fixpoint gen_many {A} (n : nat) (ma : IO A) : IO (list A) :=
+  match n with
+  | O => ret []
+  | S n' => liftA2 cons ma $ io_or (ret []) (gen_many n' ma)
+  end.
+
+Definition gen_string : IO string :=
+  String "~" ∘ String.concat "" <$> gen_many 3 gen_string'.

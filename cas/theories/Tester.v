@@ -95,8 +95,8 @@ Definition instantiate_observe {E R} `{Is__stE E} (e : observeE R)
                            Ret (s, pkt)
     end.
 
-Definition unifier' {E R} `{Is__stE E} (m : itree oE R)
-  : Monads.stateT exp_state (itree E) R :=
+Definition unifier' {E} `{Is__stE E}
+  : itree oE ~> Monads.stateT exp_state (itree E) :=
   interp
     (fun _ e =>
        match e with
@@ -104,10 +104,10 @@ Definition unifier' {E R} `{Is__stE E} (m : itree oE R)
        | (|de|)       => Monads.liftState $ trigger de
        | (||ue|)       => instantiate_unify ue
        | (|||oe)      => instantiate_observe oe
-       end) m.
+       end).
 
 Definition unifier {E R} `{Is__stE E} (m : itree oE R) : itree E R :=
-  snd <$> unifier' m [].
+  snd <$> unifier' _ m [].
 
 CoFixpoint match_event {T R} (e0 : testerE R) (r : R) (m : itree stE T)
   : itree stE T :=

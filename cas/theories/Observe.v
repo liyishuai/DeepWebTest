@@ -58,7 +58,7 @@ Definition dualize {E R} `{Is__oE E} (e : netE R) : itree E R :=
             ++ ", but observed " ++ to_string (s, d)
   end.
 
-Definition observer {E R} `{Is__oE E} (m : itree nE R) : itree E R :=
+Definition observer {E} `{Is__oE E} : itree nE ~> itree E :=
   interp
     (fun _ e =>
        match e with
@@ -74,4 +74,4 @@ Definition observer {E R} `{Is__oE E} (m : itree nE R) : itree E R :=
                          embed Unify__Match x b;;
                          ret b
          end
-       end) m.
+       end).

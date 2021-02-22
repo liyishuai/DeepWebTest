@@ -3,53 +3,36 @@ From CAS Require Export
 From SimpleIO Require Export
      IO_Bytes
      IO_Float
-     IO_Random
-     IO_Unix
-     SimpleIO.
+     IO_Sys
+     IO_Unix.
 From ExtLib Require Export
      StateMonad.
 From Coq Require Export
-     ExtrOcamlIntConv
      NArith.
 Import
+  OSys
   OUnix.
 Local Open Scope N_scope.
 
 Coercion int_of_n : N >-> int.
 
-Definition getport : IO N :=
-  N.add 8000 ∘ n_of_int <$> ORandom.int 5000.
+Notation default_port := 80.
 
-Definition try {a b} (f : IO a) (g : IO b) : IO (option a) :=
-  catch_error (Some <$> f) $ fun e m _ => g;; ret None.
-
-Definition create_sock' (port : N) : IO (option file_descr) :=
-  let iaddr : inet_addr := inet_addr_any in
-  ofd <- try (socket PF_INET SOCK_STREAM int_zero) (ret tt);;
-  match ofd with
-  | Some fd =>
-    let f := bind fd (ADDR_INET iaddr $ int_of_n port);;
-             listen fd 128;;
-             ret fd in
-    try f $ close fd
-  | None => ret None
-  end.
-
-Definition create_sock : IO (N * file_descr) :=
-  getport >>= IO.fix_io
-          (fun next p => ofd <- create_sock' p;;
-                      match ofd with
-                      | Some fd => ret (p, fd)
-                      | None    => getport >>= next
-                      end).
+Definition getport : IO int :=
+  oport <- getenv_opt "PORT";;
+  ret (match oport with
+       | Some ostr => match int_of_ostring_opt ostr with
+                     | Some port => port
+                     | None => default_port
+                     end
+       | None => default_port
+       end).
 
 Definition conn_state := list (clientT * (file_descr * string)).
 
 Definition conn_of_fd (fd : file_descr)
   : conn_state -> option (clientT * (file_descr * string)) :=
   find (file_descr_eqb fd ∘ fst ∘ snd).
-
-Notation server_port := 80.
 
 Notation BUFFER_SIZE := 1024.
 Definition SELECT_TIMEOUT := OFloat.Unsafe.of_string "0".
@@ -82,12 +65,16 @@ Definition recv_bytes : stateT conn_state IO unit :=
           '(b, s') <- runStateT recv_bytes' s;;
           if b : bool then recv_rec s' else ret (tt, s'))).
 
+Definition try {a b} (f : IO a) (g : IO b) : IO (option a) :=
+  catch_error (Some <$> f) $ fun e m _ => g;; ret None.
+
 Definition create_conn : stateT conn_state IO (option (file_descr * clientT)) :=
   mkStateT
     (fun s =>
        let iaddr : inet_addr := inet_addr_loopback in
+       port <- getport;;
        ofd <- try (fd <- socket PF_INET SOCK_STREAM int_zero;;
-                  connect fd (ADDR_INET iaddr server_port);;
+                  connect fd (ADDR_INET iaddr port);;
                   ret fd) (ret tt);;
        match ofd with
        | Some fd =>

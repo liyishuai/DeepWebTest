@@ -1,42 +1,10 @@
-From Parsec Require Export
-     Parser.
 From CAS Require Export
      NetUnix
      Tester.
 From ExtLib Require Export
      Applicative.
-From Coq Require Export
-     Ascii.
 Export
   ApplicativeNotation.
-Open Scope parser_scope.
-
-Definition io_choose' {A} (l : list A) : IO (nat * A) :=
-  match l with
-  | [] => failwith "Cannot choose from empty list"
-  | a :: _ =>
-    i <- nat_of_int <$> ORandom.int (int_of_nat (length l));;
-    ret (i, nth i l a)
-  end.
-
-Definition io_choose {A} : list A -> IO A :=
-  fmap snd ∘ io_choose'.
-
-Definition gen_string' : IO string :=
-  io_choose ["Hello"; "World"].
-
-Definition io_or {A} (x y : IO A) : IO A :=
-  b <- ORandom.bool tt;;
-  if b : bool then x else y.
-
-Fixpoint gen_many {A} (n : nat) (ma : IO A) : IO (list A) :=
-  match n with
-  | O => ret []
-  | S n' => liftA2 cons ma $ io_or (ret []) (gen_many n' ma)
-  end.
-
-Definition gen_string : IO string :=
-  String "~" ∘ String.concat "" <$> gen_many 3 gen_string'.
 
 Definition gen_request (ss : server_state exp) (es : exp_state)
   : list (IO requestT) :=
@@ -105,24 +73,6 @@ Definition gen_request (ss : server_state exp) (es : exp_state)
    end;
    random_get;
    random_cas].
-
-Fixpoint parseParens' (depth : nat) : parser string :=
-  match depth with
-  | O => raise None
-  | S depth =>
-    prefix <- string_of_list_ascii <$> untilMulti ["(";")"]%char;;
-    r <- anyToken;;
-    match r with
-    | ")"%char => ret $ prefix ++ ")"
-    | "("%char =>
-      append prefix ∘ String r <$>
-             liftA2 append (parseParens' depth) (parseParens' depth)
-    | _ => raise $ Some "Should not happen"
-    end
-  end.
-
-Definition parseParens : parser string :=
-  liftA2 String (expect "("%char) $ parseParens' bigNumber.
 
 Fixpoint findResponse (s : conn_state)
   : IO (option (packetT id) * conn_state) :=
@@ -233,4 +183,4 @@ Definition shrink_execute {R} (m : itree tE R) : IO bool :=
   else IO.while_loop (shrink_execute' m) s;; ret false.
 
 Definition test {R} : itree smE R -> IO bool :=
-  shrink_execute ∘ tester ∘ observer ∘ compose_switch tcp.
+  shrink_execute ∘ tester ∘ observer _ ∘ compose_switch tcp.
