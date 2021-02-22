@@ -141,8 +141,10 @@ Fixpoint findResponse (s : conn_state)
         failwith $ "Bad response " ++ to_string r ++ " received on connection "
                  ++ to_string c
       | inr res =>
-        ret (Some (Packet Conn__Server (Conn__Client c) (inr res)),
-             (c, (f, str')) :: t)
+        prerr_endline ("================ RECEIVED =================");;
+        let pkt := Packet Conn__Server (Conn__Client c) (inr res) in
+        prerr_endline (to_string pkt);;
+        ret (Some pkt, (c, (f, str')) :: t)
       end
     end
   end.
@@ -185,8 +187,10 @@ Fixpoint execute' {R} (fuel : nat) (s : conn_state) (script : list nat)
             '(oc, s1) <- runStateT (send_request req) s;;
             match oc with
             | Some c =>
-              '(res, s2, tr) <- execute' fuel s1 sc'
-                       (k $ Some $ Packet (Conn__Client c) Conn__Server $ inl req);;
+              prerr_endline ("================== SENT ===================");;
+              let pkt := Packet (Conn__Client c) Conn__Server $ inl req in
+              prerr_endline (to_string pkt);;
+              '(res, s2, tr) <- execute' fuel s1 sc' (k (Some pkt));;
               ret (res, s2, n :: tr)
             | None => execute' fuel s1 sc' (k None)
             end
@@ -196,6 +200,43 @@ Fixpoint execute' {R} (fuel : nat) (s : conn_state) (script : list nat)
   end.
 
 Definition execute {R} (m : itree tE R) (script : list nat) : IO (bool * list nat) :=
+  prerr_endline "<<<<< begin test >>>>>";;
   '(b, s, ns) <- execute' bigNumber [] [] m;;
+  prerr_endline "<<<<<<< end test >>>>>";;
   fold_left (fun m fd => OUnix.close fd;; m) (map (fst ∘ snd) s) (ret tt);;
   ret (b, ns).
+
+Fixpoint shrink_list {A} (l : list A) : list (list A) :=
+  match l with
+  | [] => []
+  | a :: l' =>
+    let sl' := shrink_list l' in
+    sl' ++ cons a <$> sl'
+  end.
+
+Definition shrink_execute' {R} (m : itree tE R) (script : list nat)
+  : IO (option (list nat)) :=
+  IO.fix_io
+    (fun shrink_rec ss =>
+       match ss with
+       | [] => ret None
+       | s :: ss' =>
+         '(b, s') <- execute m s;; (* maybe multiple times *)
+         if (b : bool) ||| (length script <? length s')
+         then shrink_rec ss'
+         else ret (Some s')
+       end) (shrink_list script).
+
+Definition shrink_execute {R} (m : itree tE R) : IO bool :=
+  '(b, s) <- execute m [];;
+  if b : bool
+  then ret true
+  else IO.fix_io
+         (fun shrink_rec s0 =>
+            os <- shrink_execute' m s0;;
+            if os is Some s1
+            then shrink_rec s1
+            else ret false) s.
+
+Definition test {R} : itree smE R -> IO bool :=
+  shrink_execute ∘ tester ∘ observer ∘ compose_switch tcp.
