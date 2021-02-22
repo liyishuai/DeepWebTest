@@ -51,18 +51,6 @@ Definition conn_of_fd (fd : file_descr)
 
 Notation server_port := 80.
 
-Definition create_conn (c : clientT) : stateT conn_state IO (option file_descr) :=
-  mkStateT
-    (fun s =>
-       let iaddr : inet_addr := inet_addr_loopback in
-       ofd <- try (fd <- socket PF_INET SOCK_STREAM int_zero;;
-                  connect fd (ADDR_INET iaddr server_port);;
-                  ret fd) (ret tt);;
-       ret (ofd, match ofd with
-                 | Some fd => (c, (fd, ""))::s
-                 | None    => s
-                 end)).
-
 Notation BUFFER_SIZE := 1024.
 Definition SELECT_TIMEOUT := OFloat.Unsafe.of_string "0".
 
@@ -94,30 +82,39 @@ Definition recv_bytes : stateT conn_state IO unit :=
           '(b, s') <- runStateT recv_bytes' s;;
           if b : bool then recv_rec s' else ret (tt, s'))).
 
-Definition send_request (c : clientT) (req : requestT)
-  : stateT conn_state IO bool :=
+Definition create_conn : stateT conn_state IO (option (file_descr * clientT)) :=
+  mkStateT
+    (fun s =>
+       let iaddr : inet_addr := inet_addr_loopback in
+       ofd <- try (fd <- socket PF_INET SOCK_STREAM int_zero;;
+                  connect fd (ADDR_INET iaddr server_port);;
+                  ret fd) (ret tt);;
+       match ofd with
+       | Some fd =>
+         let c := length s in
+         ret (Some (fd, c), (c, (fd, ""))::s)
+       | None => ret (None, s)
+       end).
+
+Definition send_request (req : requestT)
+  : stateT conn_state IO (option clientT):=
   let send_bytes fd s :=
       let str : string := to_string req in
       buf <- OBytes.of_string str;;
       let len : int := OBytes.length buf in
-      b <- IO.fix_io
-            (fun send_rec o =>
-               sent <- send fd buf o (len - o)%int [];;
-               if sent <? int_zero
-               then close fd;; ret false
-               else
-                 if o + sent =? len
-                 then ret true
-                 else send_rec (o + sent))%int int_zero;;
-      ret (b, s)
-  in
+      IO.fix_io
+        (fun send_rec o =>
+           sent <- send fd buf o (len - o)%int [];;
+           if sent <? int_zero
+           then close fd;; ret false
+           else
+             if o + sent =? len
+             then ret true
+             else send_rec (o + sent))%int int_zero in
   mkStateT
-    (fun s =>
-       match get c s with
-       | Some (fd, _) => send_bytes fd s
-       | None => '(ofd, s') <- runStateT (create_conn c) s;;
-                match ofd with
-                | Some fd => send_bytes fd s'
-                | None    => ret (false, s')
-                end
-       end).
+    (fun s => '(ocfd, s') <- runStateT create_conn s;;
+           match ocfd with
+           | Some (fd, c) => b <- send_bytes fd s';;
+                            ret (if b : bool then Some c else None, s')
+           | None => ret (None, s')
+           end).

@@ -182,14 +182,14 @@ Fixpoint execute' {R} (fuel : nat) (s : conn_state) (script : list nat)
                                  pair (n', ns) <$> greq
                                end
                              end;;
-            c <- io_choose (length s :: map fst s);;
-            '(b, s1) <- runStateT (send_request c req) s;;
-            if b : bool
-            then
+            '(oc, s1) <- runStateT (send_request req) s;;
+            match oc with
+            | Some c =>
               '(res, s2, tr) <- execute' fuel s1 sc'
                        (k $ Some $ Packet (Conn__Client c) Conn__Server $ inl req);;
               ret (res, s2, n :: tr)
-            else execute' fuel s1 sc' (k None)
+            | None => execute' fuel s1 sc' (k None)
+            end
         end k
       end
     end
