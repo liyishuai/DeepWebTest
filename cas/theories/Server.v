@@ -109,7 +109,7 @@ Definition handler (req : requestT)
     handle k cas_handler
   end.
 
-Definition cas_server {R} : IO R :=
+Definition cas_server : IO unit :=
   ORandom.self_init tt;;
   sfd <- create_sock;;
   IO.loop
