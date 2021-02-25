@@ -6,78 +6,33 @@ From ExtLib Require Export
 Export
   ApplicativeNotation.
 
-Definition gen_request (ss : server_state exp) (es : exp_state)
-  : list (IO (requestT id)) :=
-  let random_get :=
-      liftA2 Request__GET gen_string (gen_string : IO (id string)) in
-  let random_cas :=
-      liftA2 Request__CAS gen_string (gen_string : IO (id string)) <*> gen_string
-  in
-  [match ss with                (* Expect Not Modified *)
-   | [] => random_get
-   | _::_ =>
-     '(k, (tx, vx)) <- io_choose ss;;
-     match tx with
-     | Exp__Const t => ret $ Request__GET k (t : id string)
-     | Exp__Var   x =>
-       match get x es with
-       | Some (inl t)      => ret $ Request__GET k (t : id string)
-       | Some (inr ((t0::_) as ts)) =>
-         Request__GET k <$> (io_choose ts : IO (id string))
-       | Some (inr []) | None => Request__GET k <$> (gen_string : IO (id string))
-       end
-     | Exp__Match _ _ => Request__GET k <$> (gen_string : IO (id string))
-     end
-   end;
-   match ss with                (* Expect No Content *)
-   | [] => random_cas
-   | ss0::_ =>
-     '(k, (tx, vx)) <- io_choose ss;;
-     match tx with
-     | Exp__Const t => Request__CAS k (t : id string) <$> gen_string
-     | Exp__Var   x =>
-       match get x es with
-       | Some (inl t) => Request__CAS k (t : id string) <$> gen_string
-       | Some (inr ((t0::_) as ts)) =>
-         liftA2 (Request__CAS k) (io_choose ts : IO (id string)) gen_string
-       | Some (inr [])
-       | None => liftA2 (Request__CAS k) (gen_string : IO (id string)) gen_string
-       end
-     | Exp__Match _ _ =>
-       liftA2 (Request__CAS k) (gen_string : IO (id string)) gen_string
-     end
-   end;
-  match ss with                 (* Expect OK *)
-   | [] => random_get
-   | ss0::_ =>
-     '(k, (tx, vx)) <- io_choose ss;;
-     match tx with
-     | Exp__Const t => Request__GET k <$> (gen_string : IO (id string))
-     | Exp__Var   x =>
-       match get x es with
-       | Some (inr ((t0::_) as ts)) =>
-         Request__GET k <$> (io_choose ts : IO (id string))
-       | _ => Request__GET k <$> (gen_string : IO (id string))
-       end
-     | Exp__Match _ _ => Request__GET k <$> (gen_string : IO (id string))
-     end
-   end;
-   match ss with                (* Expect Precondition Failed *)
-   | [] => random_cas
-   | ss0::_ =>
-     '(k, (tx, vx)) <- io_choose ss;;
-     match tx with
-     | Exp__Var   x =>
-       match get x es with
-       | Some (inr ((t0::_) as ts)) =>
-             liftA2 (Request__CAS k) (io_choose ts : IO (id string)) gen_string
-       | _ => liftA2 (Request__CAS k) (gen_string   : IO (id string)) gen_string
-       end
-     | _ => liftA2 (Request__CAS k) (gen_string : IO (id string)) gen_string
-     end
-   end;
-   random_get;
-   random_cas].
+Definition gen_request (ss : server_state exp) : IO (requestT exp) :=
+  io_or
+    (k <- io_choose_ gen_string (map fst ss);;
+     t <- io_choose_ (Exp__Const <$> gen_string) (map (fst ∘ snd) ss);;
+     ret (Request__GET k t))
+    (k <- io_choose_ gen_string (map fst ss);;
+     t <- io_choose_ (Exp__Const <$> gen_string) (map (fst ∘ snd) ss);;
+     Request__CAS k t <$> gen_string).
+
+Definition fill_tag (tx : exp tag) (es : exp_state) : IO (id tag) :=
+  match tx with
+  | Exp__Const t => io_or (ret t) gen_string
+  | Exp__Var x =>
+    match get x es with
+    | Some (inl t) => io_or (ret t) gen_string
+    | Some (inr ts) => io_or (io_choose_ gen_string ts) gen_string
+    | None => gen_string
+    end
+  | Exp__Match _ _ => gen_string
+  end.
+
+Definition fill_request (rx : requestT exp) (es : exp_state)
+  : IO (requestT id) :=
+  match rx with
+  | Request__GET k tx   => Request__GET k <$> fill_tag tx es
+  | Request__CAS k tx v => flip (Request__CAS k) v <$> fill_tag tx es
+  end.
 
 Fixpoint findResponse (s : conn_state)
   : IO (option (packetT id) * conn_state) :=
@@ -104,8 +59,8 @@ Fixpoint findResponse (s : conn_state)
     end
   end.
 
-Fixpoint execute' {R} (fuel : nat) (s : conn_state) (script : list nat)
-         (m : itree tE R) : IO (bool * conn_state * list nat) :=
+Fixpoint execute' {R} (fuel : nat) (s : conn_state) (script : list (requestT exp))
+         (m : itree tE R) : IO (bool * conn_state * list (requestT exp)) :=
   match fuel with
   | O => ret (true, s, [])
   | S fuel =>
@@ -127,18 +82,11 @@ Fixpoint execute' {R} (fuel : nat) (s : conn_state) (script : list nat)
                 execute' fuel s' script (k op)
         | Client__Send ss es =>
           fun k =>
-            '(n, sc', req) <- match script with
-                             | [] =>
-                               '(n, greq) <- io_choose' (gen_request ss es);;
-                               pair (n, []) <$> greq
-                             | n :: ns =>
-                               match nth_error (gen_request ss es) n with
-                               | Some greq => pair (n, ns) <$> greq
-                               | None =>
-                                 '(n', greq) <- io_choose' (gen_request ss es);;
-                                 pair (n', ns) <$> greq
-                               end
-                             end;;
+            '(sc', rx) <- match script with
+                         | [] => pair [] <$> gen_request ss
+                         | rx :: rs => ret (rs, rx)
+                         end;;
+            req <- fill_request rx es;;
             '(oc, s1) <- runStateT (send_request req) s;;
             match oc with
             | Some c =>
@@ -146,7 +94,7 @@ Fixpoint execute' {R} (fuel : nat) (s : conn_state) (script : list nat)
               let pkt := Packet (Conn__Client c) Conn__Server $ inl req in
               prerr_endline (to_string pkt);;
               '(res, s2, tr) <- execute' fuel s1 sc' (k (Some pkt));;
-              ret (res, s2, n :: tr)
+              ret (res, s2, rx :: tr)
             | None => execute' fuel s1 sc' (k None)
             end
         end k
@@ -154,7 +102,8 @@ Fixpoint execute' {R} (fuel : nat) (s : conn_state) (script : list nat)
     end
   end.
 
-Definition execute {R} (m : itree tE R) (script : list nat) : IO (bool * list nat) :=
+Definition execute {R} (m : itree tE R) (script : list (requestT exp))
+  : IO (bool * list (requestT exp)) :=
   prerr_endline "<<<<< begin test >>>>>";;
   '(b, s, ns) <- execute' bigNumber [] [] m;;
   prerr_endline "<<<<<<< end test >>>>>";;
@@ -168,8 +117,8 @@ Fixpoint shrink_list {A} (l : list A) : list (list A) :=
              l' :: sl' ++ cons a <$> sl'
   end.
 
-Definition shrink_execute' {R} (m : itree tE R) (script : list nat)
-  : IO (option (list nat)) :=
+Definition shrink_execute' {R} (m : itree tE R) (script : list (requestT exp))
+  : IO (option (list (requestT exp))) :=
   IO.fix_io
     (fun shrink_rec ss =>
        match ss with

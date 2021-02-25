@@ -160,6 +160,14 @@ Fixpoint parseParens' (depth : nat) : parser string :=
 Definition parseParens : parser string :=
   liftA2 String (expect "("%char) $ parseParens' bigNumber.
 
+Definition io_choose_ {A} (default : IO A) (l : list A) : IO A :=
+  match l with
+  | [] => default
+  | a :: _ =>
+    i <- nat_of_int <$> ORandom.int (int_of_nat (length l));;
+    ret (nth i l a)
+  end.
+
 Definition io_choose' {A} (l : list A) : IO (nat * A) :=
   match l with
   | [] => failwith "Cannot choose from empty list"

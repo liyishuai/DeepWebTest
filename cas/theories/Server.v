@@ -66,8 +66,8 @@ Definition handler (req : requestT id)
         if t =? t0
         then
           t1 <- gen_string;;
-          ret (Response__NoContent,
-               update k (t1 : tag, v) st : server_state id)
+          ret (Response__NoContent, st
+               (* update k (t1 : tag, v) st : server_state id *))
         else ret (Response__PreconditionFailed, st) in
     handle k cas_handler
   end.
