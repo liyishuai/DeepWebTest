@@ -7,24 +7,26 @@ Export
   ApplicativeNotation.
 
 Definition gen_request (ss : server_state exp) (es : exp_state)
-  : list (IO requestT) :=
+  : list (IO (requestT id)) :=
   let random_get :=
-      liftA2 Request__GET gen_string gen_string in
+      liftA2 Request__GET gen_string (gen_string : IO (id string)) in
   let random_cas :=
-      liftA2 Request__CAS gen_string gen_string <*> gen_string in
+      liftA2 Request__CAS gen_string (gen_string : IO (id string)) <*> gen_string
+  in
   [match ss with                (* Expect Not Modified *)
    | [] => random_get
    | _::_ =>
      '(k, (tx, vx)) <- io_choose ss;;
      match tx with
-     | Exp__Const t => ret $ Request__GET k t
+     | Exp__Const t => ret $ Request__GET k (t : id string)
      | Exp__Var   x =>
        match get x es with
-       | Some (inl t)      => ret $ Request__GET k t
-       | Some (inr ((t0::_) as ts)) => Request__GET k <$> io_choose ts
-       | Some (inr []) | None    => Request__GET k <$> gen_string
+       | Some (inl t)      => ret $ Request__GET k (t : id string)
+       | Some (inr ((t0::_) as ts)) =>
+         Request__GET k <$> (io_choose ts : IO (id string))
+       | Some (inr []) | None => Request__GET k <$> (gen_string : IO (id string))
        end
-     | Exp__Match _ _ => Request__GET k <$> gen_string
+     | Exp__Match _ _ => Request__GET k <$> (gen_string : IO (id string))
      end
    end;
    match ss with                (* Expect No Content *)
@@ -32,15 +34,17 @@ Definition gen_request (ss : server_state exp) (es : exp_state)
    | ss0::_ =>
      '(k, (tx, vx)) <- io_choose ss;;
      match tx with
-     | Exp__Const t => Request__CAS k t <$> gen_string
+     | Exp__Const t => Request__CAS k (t : id string) <$> gen_string
      | Exp__Var   x =>
        match get x es with
-       | Some (inl t) => Request__CAS k t <$> gen_string
+       | Some (inl t) => Request__CAS k (t : id string) <$> gen_string
        | Some (inr ((t0::_) as ts)) =>
-         liftA2 (Request__CAS k) (io_choose ts) gen_string
-       | Some (inr []) | None => liftA2 (Request__CAS k) gen_string gen_string
+         liftA2 (Request__CAS k) (io_choose ts : IO (id string)) gen_string
+       | Some (inr [])
+       | None => liftA2 (Request__CAS k) (gen_string : IO (id string)) gen_string
        end
-     | Exp__Match _ _ => liftA2 (Request__CAS k) gen_string gen_string
+     | Exp__Match _ _ =>
+       liftA2 (Request__CAS k) (gen_string : IO (id string)) gen_string
      end
    end;
   match ss with                 (* Expect OK *)
@@ -48,13 +52,14 @@ Definition gen_request (ss : server_state exp) (es : exp_state)
    | ss0::_ =>
      '(k, (tx, vx)) <- io_choose ss;;
      match tx with
-     | Exp__Const t => Request__GET k <$> gen_string
+     | Exp__Const t => Request__GET k <$> (gen_string : IO (id string))
      | Exp__Var   x =>
        match get x es with
-       | Some (inr ((t0::_) as ts)) => Request__GET k <$> io_choose ts
-       | _                       => Request__GET k <$> gen_string
+       | Some (inr ((t0::_) as ts)) =>
+         Request__GET k <$> (io_choose ts : IO (id string))
+       | _ => Request__GET k <$> (gen_string : IO (id string))
        end
-     | Exp__Match _ _ => Request__GET k <$> gen_string
+     | Exp__Match _ _ => Request__GET k <$> (gen_string : IO (id string))
      end
    end;
    match ss with                (* Expect Precondition Failed *)
@@ -65,10 +70,10 @@ Definition gen_request (ss : server_state exp) (es : exp_state)
      | Exp__Var   x =>
        match get x es with
        | Some (inr ((t0::_) as ts)) =>
-             liftA2 (Request__CAS k) (io_choose ts) gen_string
-       | _ => liftA2 (Request__CAS k)  gen_string       gen_string
+             liftA2 (Request__CAS k) (io_choose ts : IO (id string)) gen_string
+       | _ => liftA2 (Request__CAS k) (gen_string   : IO (id string)) gen_string
        end
-     | _ => liftA2 (Request__CAS k) gen_string gen_string
+     | _ => liftA2 (Request__CAS k) (gen_string : IO (id string)) gen_string
      end
    end;
    random_get;

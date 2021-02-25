@@ -15,9 +15,10 @@ Notation key   := string.
 Notation tag   := string.
 Notation value := string.
 
-Variant requestT :=
-  Request__GET (k : key) (t : tag)
-| Request__CAS (k : key) (t : tag) (v : value).
+Variant requestT {exp_} :=
+  Request__GET (k : key) (t : exp_ tag)
+| Request__CAS (k : key) (t : exp_ tag) (v : value).
+Arguments requestT : clear implicits.
 
 Variant responseT {exp_} :=
   Response__NotModified
@@ -26,11 +27,17 @@ Variant responseT {exp_} :=
 | Response__PreconditionFailed.
 Arguments responseT : clear implicits.
 
-Program Instance Decidable_eq_requestT (x y : requestT) : Decidable (x = y) := {
+Program Instance Decidable_eq_requestT (x y : requestT id) : Decidable (x = y) := {
   Decidable_witness :=
     match x, y with
-    | Request__GET xk xt,    Request__GET yk yt    => (xk, xt)     = (yk, yt)?
-    | Request__CAS xk xt xv, Request__CAS yk yt yv => (xk, xt, xv) = (yk, yt, yv)?
+    | Request__GET xk xt, Request__GET yk yt =>
+      let xt' : tag := xt in
+      let yt' : tag := yt in
+      (xk, xt') = (yk, yt')?
+    | Request__CAS xk xt xv, Request__CAS yk yt yv =>
+      let xt' : tag := xt in
+      let yt' : tag := yt in
+      (xk, xt', xv) = (yk, yt', yv)?
     | _, _ => false
     end }.
 Solve Obligations with intros; intuition; discriminate.
@@ -43,7 +50,7 @@ Next Obligation.
   apply andb_true_iff; intuition; apply eqb_eq; reflexivity.
 Qed.
 
-Instance Serialize__requestT : Serialize requestT :=
+Instance Serialize__requestT : Serialize (requestT id) :=
   fun m =>
     match m with
     | Request__GET k t =>
@@ -62,13 +69,7 @@ Instance Serialize__responseT {exp_} `{Serialize (exp_ string)}
     | Response__PreconditionFailed => [Atom "PreconditionFailed"]
     end%sexp.
 
-Instance Serialize__idString : Serialize (id string) :=
-  fun (s : string) => to_sexp s.
-
-Instance Deserialize__idString : Deserialize (id string) :=
-  Deserialize_string.
-
-Instance Deserialize__requestT : Deserialize requestT :=
+Instance Deserialize__requestT : Deserialize (requestT id) :=
   Deser.match_con "request" []
     [ ("GET", Deser.con2_ Request__GET)
     ; ("CAS", Deser.con3_ Request__CAS)].

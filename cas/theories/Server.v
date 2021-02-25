@@ -12,7 +12,7 @@ Definition create_sock : IO file_descr :=
   listen fd 128%N;;
   ret fd.
 
-Definition receiveRequest : file_descr -> IO (file_descr * requestT) :=
+Definition receiveRequest : file_descr -> IO (file_descr * requestT id) :=
   IO.fix_io
     (fun recv_rec sfd =>
        fd <- fst <$> accept sfd;;
@@ -23,7 +23,7 @@ Definition receiveRequest : file_descr -> IO (file_descr * requestT) :=
        then retry
        else str <- substring O (nat_of_int len) ∘ from_ostring
                             <$> OBytes.to_string buf;;
-            match @from_string requestT _ str with
+            match from_string str with
             | inl _ => retry
             | inr req => ret (fd, req)
             end).
@@ -42,7 +42,7 @@ Definition sendResponse (fd : file_descr) (res : responseT id) : IO unit :=
               then close fd
               else send_rec (o + sent))%int int_zero.
 
-Definition handler (req : requestT)
+Definition handler (req : requestT id)
   : stateT (server_state id) IO (responseT id) :=
   let handle k (f : tag -> value -> server_state id ->
                     IO (responseT id * server_state id))

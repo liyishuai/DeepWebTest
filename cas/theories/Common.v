@@ -35,6 +35,13 @@ Qed.
 
 Notation "'Decidable_eq' A" := (forall x y : A, Decidable (x = y)) (at level 200).
 
+Program Instance Decidable_eq_id {A} `{Decidable_eq A}
+  : Decidable_eq (id A) := { Decidable_witness := @Decidable_witness (x = y) _ }.
+Next Obligation.
+  intuition; unfold Decidable_witness in *;
+    unfold Decidable_eq_id_obligation_1 in *; destruct (H x y); intuition.
+Qed.
+
 Program Instance Decidable_eq_list {A} `{Decidable_eq A}
   : Decidable_eq (list A) := {
   Decidable_witness :=
@@ -179,3 +186,11 @@ Fixpoint gen_many {A} (n : nat) (ma : IO A) : IO (list A) :=
 
 Definition gen_string : IO string :=
   String "~" ∘ String.concat "" <$> gen_many 3 gen_string'.
+
+Polymorphic Instance Serialize_id {A} {Serialize_A : Serialize A}
+  : Serialize (id A)
+  := Serialize_A.
+
+Polymorphic Instance Deserialize_id {A} {Deserialize_A : Deserialize A}
+  : Deserialize (id A)
+  := Deserialize_A.

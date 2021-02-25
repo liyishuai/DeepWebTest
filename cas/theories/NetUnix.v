@@ -82,7 +82,7 @@ Definition create_conn : stateT conn_state IO (option (file_descr * clientT)) :=
        | None => ret (None, s)
        end).
 
-Definition send_request (req : requestT)
+Definition send_request (req : requestT id)
   : stateT conn_state IO (option clientT):=
   let send_bytes fd s :=
       let str : string := to_string req in

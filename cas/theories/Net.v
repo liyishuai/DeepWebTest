@@ -34,7 +34,7 @@ Next Obligation.
     destruct y; try apply Nat.eqb_eq; intuition.
 Qed.
 
-Definition payloadT exp_ : Type := requestT + responseT exp_.
+Definition payloadT exp_ : Type := requestT id + responseT exp_.
 
 Record packetT {exp_} :=
   Packet {
