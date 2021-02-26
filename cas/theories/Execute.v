@@ -114,7 +114,13 @@ Fixpoint shrink_list {A} (l : list A) : list (list A) :=
   match l with
   | [] => []
   | a :: l' => let sl' := shrink_list l' in
-             l' :: sl' ++ cons a <$> sl'
+             l' :: cons a <$> sl'
+  end.
+
+Fixpoint repeat_list {A} (n : nat) (l : list A) : list A :=
+  match n with
+  | O => []
+  | S n' => l ++ repeat_list n' l
   end.
 
 Definition shrink_execute' {R} (m : itree tE R) (script : list (requestT exp))
@@ -124,11 +130,11 @@ Definition shrink_execute' {R} (m : itree tE R) (script : list (requestT exp))
        match ss with
        | [] => ret None
        | s :: ss' =>
-         '(b, s') <- execute m s;; (* maybe multiple times *)
-         if (b : bool) ||| (length script <? length s')
+         '(b, s') <- execute m s;;
+         if (b : bool) ||| (length script <=? length s')
          then shrink_rec ss'
          else ret (Some s')
-       end) (shrink_list script).
+       end) (repeat_list 20 $ shrink_list script).
 
 Definition shrink_execute {R} (m : itree tE R) : IO bool :=
   '(b, s) <- execute m [];;
