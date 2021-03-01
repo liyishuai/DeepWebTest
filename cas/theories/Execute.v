@@ -16,15 +16,22 @@ Definition gen_request (ss : server_state exp) : IO (requestT exp) :=
      Request__CAS k t <$> gen_string).
 
 Definition fill_tag (tx : exp tag) (es : exp_state) : IO (id tag) :=
+  let gen_tag :=
+      io_choose_ gen_string $
+                 concat (map (fun s =>
+                                match snd s with
+                                | inl t  => [t]
+                                | inr ts => ts
+                                end) es) in
   match tx with
-  | Exp__Const t => io_or (ret t) gen_string
+  | Exp__Const t => io_or (ret t) gen_tag
   | Exp__Var x =>
     match get x es with
-    | Some (inl t) => io_or (ret t) gen_string
-    | Some (inr ts) => io_or (io_choose_ gen_string ts) gen_string
-    | None => gen_string
+    | Some (inl t) => io_or (ret t) gen_tag
+    | Some (inr ts) => io_or (io_choose_ gen_tag ts) gen_tag
+    | None => gen_tag
     end
-  | Exp__Match _ _ => gen_string
+  | Exp__Match _ _ => gen_tag
   end.
 
 Definition fill_request (rx : requestT exp) (es : exp_state)
