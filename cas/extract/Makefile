@@ -10,7 +10,7 @@ $(COQMAKEFILE): _CoqProject
 
 clean: $(COQMAKEFILE)
 	@+$(MAKE) -f $^ cleanall
-	@rm -f $^ $^.conf *~ *.ml* *.log
+	@rm -f $^ $^.conf *~ *.ml*
 	@ocamlbuild -clean
 
 %.native:

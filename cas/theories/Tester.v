@@ -159,6 +159,11 @@ CoFixpoint backtrack' {E R} `{Is__tE E} (others : list (itree stE R))
                        Tau (backtrack' (k (negb b) :: others) (k b))
       end k
     | (||te) =>
+      let postpone :=
+          match others with
+          | []              => Tau (backtrack' [] m)
+          | other :: others' => Tau (backtrack' (others' ++ [m]) other)
+          end in
       match te in testerE Y return (Y -> _) -> _ with
       | Tester__Send st es =>
         fun k => op1 <- trigger Client__Recv;;
@@ -175,7 +180,7 @@ CoFixpoint backtrack' {E R} `{Is__tE E} (others : list (itree stE R))
                 | Some pkt =>
                   Tau (backtrack' (match_observe (Tester__Send st es)
                                                  pkt others) (k pkt))
-                | None => catch "Not ready to send"
+                | None => postpone
                 end
               end
       | Tester__Recv =>
@@ -183,13 +188,7 @@ CoFixpoint backtrack' {E R} `{Is__tE E} (others : list (itree stE R))
               match opkt with
               | Some pkt =>
                 Tau (backtrack' (match_observe Tester__Recv pkt others) (k pkt))
-              | None =>
-                match others with
-                | [] =>
-                  Tau (backtrack' [] m)
-                | other :: others' =>
-                  Tau (backtrack' (others' ++ [m]) other)
-                end
+              | None => postpone
               end
       end k
     end

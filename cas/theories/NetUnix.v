@@ -57,8 +57,8 @@ Definition recv_bytes : stateT conn_state IO unit :=
                      then recv_rec fds'
                      else str <- from_ostring <$> OBytes.to_string buf;;
                           let str1 : string := substring 0 (nat_of_int len) str in
-                          prerr_endline ("Received " ++ str1
-                                         ++ " from " ++ to_string c);;
+                          (* prerr_endline ("Received " ++ str1 *)
+                          (*                ++ " from " ++ to_string c);; *)
                           ret (tt, update c (fd, str0 ++ str1) s)
               | None => failwith "Should not happen"
               end
