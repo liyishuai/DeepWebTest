@@ -12,61 +12,35 @@ Definition find_nth' {A} (f : A -> bool) (l : list A) : list (nat * A) :=
   let index : list nat := seq 0 $ length l in
   filter (f ∘ snd) $ zip index l.
 
-Definition find_nth {A} (f : A -> bool) : list A -> list nat :=
-  map fst ∘ find_nth' f.
-
 Definition get_tag (sc : logT) : option tag :=
   if snd sc is Some (Response__OK t _) then Some t else None.
 
 Definition has_tag (sc : logT) : bool :=
   if get_tag sc is Some _ then true else false.
 
-Definition arbitraryNat (n : nat) : IO nat :=
-  nat_of_int <$> ORandom.int (int_of_nat n).
-
-Definition arbitraryRequest (ss : server_state exp) (t : traceT)
-  : IO (requestT texp) :=
-  let n :      nat := length           t in
-  let i : list nat := find_nth has_tag t in
+Definition arbitraryRequest (ss : server_state exp) (tr : traceT)
+  : IO stepT :=
+  let x : var := fresh_var $ script_of_trace tr in
   k <- io_or gen_string (io_choose_ gen_string (map fst ss));;
-  f <- io_choose_ (if n is O then ret O else arbitraryNat n) i;;
-  let t : texp tag := Texp__FandB f (n - S f) in
-  io_or (pure $ Request__GET k t) (Request__CAS k t <$> gen_string).
+  let ts : list (texp tag) :=
+      map (Texp__Var ∘ fst ∘ fst ∘ fst) $ filter has_tag tr in
+  t <- io_choose_ (ret Texp__Random) ts;;
+  pair x <$> io_or (pure $ Request__GET k t) (Request__CAS k t <$> gen_string).
 
-Definition pick_tag (tr : traceT) : texp tag * tag :=
-  match find_nth' has_tag tr with
-  | [] => (Texp__FandB O O, """Random""")
-  | (f, sc) :: _ =>
-    (Texp__FandB f (length tr - S f),
-     match get_tag sc with
-     | Some t => t
-     | None   => """Random"""    (* should not happen *)
-     end)
-  end.
-
-Definition fill_tag (tr : traceT) (tx : texp tag) : texp tag * id tag :=
-  let n := length tr in
+Definition fill_tag (tr : traceT) (tx : texp tag) : id tag :=
   match tx with
-  | Texp__FandB f b =>
-    let tf := nth_error tr f        >>= get_tag in
-    let tb := nth_error (rev' tr) b >>= get_tag in
-    match tf, tb with
-    | Some t, _ =>
-      (Texp__FandB f (n - S f), t)
-    | None, Some t =>
-      (Texp__FandB (n - S b) b, t)
-    | None, None => pick_tag tr
+  | Texp__Random => """Random"""
+  | Texp__Var x =>
+    match find (Nat.eqb x ∘ fst ∘ fst ∘ fst) tr with
+    | Some (_, _, _, Some (Response__OK _ t)) => t
+    | _ => """Unknown"""
     end
   end.
 
-Definition fill_request (tr : traceT) (rx : requestT texp) : requestT texp * requestT id :=
+Definition fill_request (tr : traceT) (rx : requestT texp) : requestT id :=
   match rx with
-  | Request__GET k tx =>
-    let (tx', t) := fill_tag tr tx in
-    (Request__GET k tx', Request__GET k t)
-  | Request__CAS k tx v =>
-    let (tx', t) := fill_tag tr tx in
-    (Request__CAS k tx' v, Request__CAS k t v)
+  | Request__GET k tx => Request__GET k $ fill_tag tr tx
+  | Request__CAS k tx v => Request__CAS k (fill_tag tr tx) v
   end.
 
 Definition replace {A} (n : nat) (a : A) (l : list A) : list A :=
@@ -80,11 +54,11 @@ Definition replace_first {A} (f : A -> bool) (g : A -> A) (l : list A) : list A 
 
 Definition fill_trace (c : clientT) (res : responseT id) : traceT -> traceT :=
   replace_first (fun sc =>
-                let '(c0, _, ores) := sc in
+                let '(_, c0, ores) := sc in
                 if ores is None then c0 =? c else false)%nat
              (fun sc =>
-                let '(c, req, _) := sc in
-                (c, req, Some res)).
+                let '(x, req, c, _) := sc in
+                (x, req, c, Some res)).
 
 Fixpoint findResponse (s : conn_state)
   : IO (option (packetT id) * conn_state) :=
@@ -150,15 +124,15 @@ Fixpoint execute' {R} (fuel : nat) (s : conn_state) (oscript : option scriptT)
                             ret (Some rx, None)
                           end;;
             match orx with
-            | Some rx =>
-              let (rx', req) := fill_request acc rx in
+            | Some ((n, reqx) as step) =>
+              let req := fill_request acc reqx in
               '(oc, s1) <- runStateT (send_request req) s;;
               match oc with
               | Some c =>
                 (* prerr_endline ("================== SENT ===================");; *)
                 let pkt := Packet (Conn__Client c) Conn__Server $ inl req in
                 (* prerr_endline (to_string pkt);; *)
-                execute' fuel s1 ot' (acc++[(c, rx', None)])%list (k (Some pkt))
+                execute' fuel s1 ot' (acc++[(step, c, None)])%list (k (Some pkt))
               | None => execute' fuel s1 ot' acc (k None)
               end
             | None => execute' fuel s ot' acc (k None)

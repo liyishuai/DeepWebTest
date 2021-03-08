@@ -4,11 +4,13 @@ From ExtLib Require Export
      OptionMonad.
 
 Variant texp : Type -> Set :=
-  Texp__FandB : nat -> nat -> texp tag.
+  Texp__Random :    texp tag
+| Texp__Var : var -> texp tag.
 
 Instance Serialize__texp : Serialize (texp tag) :=
   fun tx => match tx with
-         | Texp__FandB f b => [Atom "Texp"; to_sexp f; to_sexp b]%sexp
+         | Texp__Random => Atom "Random"
+         | Texp__Var x => [Atom "Step"; to_sexp x]%sexp
          end.
 
 Instance Serialize__reqtexp : Serialize (requestT texp) :=
@@ -20,11 +22,12 @@ Instance Serialize__reqtexp : Serialize (requestT texp) :=
       [Atom "CAS"; to_sexp k; to_sexp t; to_sexp v]
     end%sexp.
 
-Definition scriptT := list (requestT texp).
-Definition logT : Set := clientT * requestT texp * option (responseT id).
+Definition stepT : Set := var * requestT texp.
+Definition logT : Set := stepT * clientT * option (responseT id).
+Definition scriptT := list stepT.
 Definition traceT := list logT.
 
-Definition script_of_trace : traceT -> scriptT := map (snd ∘ fst).
+Definition script_of_trace : traceT -> scriptT := map (fst ∘ fst).
 
 Fixpoint shrink_list {A} (l : list A) : list (list A) :=
   match l with
