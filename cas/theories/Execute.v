@@ -1,31 +1,11 @@
 From CAS Require Export
      NetUnix
+     Shrink
      Tester.
 From ExtLib Require Export
-     OptionMonad
      Applicative.
 Export
   ApplicativeNotation.
-
-Variant texp : Type -> Set :=
-  Texp__FandB : nat -> nat -> texp tag.
-
-Definition scriptT : Set := clientT * requestT texp * option (responseT id).
-Definition traceT := list scriptT.
-
-Instance Serialize__texp : Serialize (texp tag) :=
-  fun tx => match tx with
-         | Texp__FandB f b => [Atom "Texp"; to_sexp f; to_sexp b]%sexp
-         end.
-
-Instance Serialize__reqtexp : Serialize (requestT texp) :=
-  fun m =>
-    match m with
-    | Request__GET k t =>
-      [Atom "GET"; to_sexp k; to_sexp t]
-    | Request__CAS k t v =>
-      [Atom "CAS"; to_sexp k; to_sexp t; to_sexp v]
-    end%sexp.
 
 (** Find all [n] s.t. [f (nth n l) = true]. *)
 Definition find_nth' {A} (f : A -> bool) (l : list A) : list (nat * A) :=
@@ -35,10 +15,10 @@ Definition find_nth' {A} (f : A -> bool) (l : list A) : list (nat * A) :=
 Definition find_nth {A} (f : A -> bool) : list A -> list nat :=
   map fst ∘ find_nth' f.
 
-Definition get_tag (sc : scriptT) : option tag :=
+Definition get_tag (sc : logT) : option tag :=
   if snd sc is Some (Response__OK t _) then Some t else None.
 
-Definition has_tag (sc : scriptT) : bool :=
+Definition has_tag (sc : logT) : bool :=
   if get_tag sc is Some _ then true else false.
 
 Definition arbitraryNat (n : nat) : IO nat :=
@@ -131,7 +111,7 @@ Fixpoint findResponse (s : conn_state)
     end
   end.
 
-Fixpoint execute' {R} (fuel : nat) (s : conn_state) (otrace : option traceT)
+Fixpoint execute' {R} (fuel : nat) (s : conn_state) (oscript : option scriptT)
          (acc : traceT) (m : itree tE R)
   : IO (bool * conn_state * traceT) :=
   match fuel with
@@ -139,14 +119,14 @@ Fixpoint execute' {R} (fuel : nat) (s : conn_state) (otrace : option traceT)
   | S fuel =>
     match observe m with
     | RetF _ => ret (true, s, acc)
-    | TauF m' => execute' fuel s otrace acc m'
+    | TauF m' => execute' fuel s oscript acc m'
     | VisF e k =>
       match e with
       | (Throw err|) => ret (false, s, acc)
       | (|ne|) =>
         match ne in nondetE Y return (Y -> _) -> _ with
         | Or => fun k => b <- ORandom.bool tt;;
-                     execute' fuel s otrace acc (k b)
+                     execute' fuel s oscript acc (k b)
         end k
       | (||ce) =>
         match ce in clientE Y return (Y -> _) -> _ with
@@ -158,13 +138,13 @@ Fixpoint execute' {R} (fuel : nat) (s : conn_state) (otrace : option traceT)
                       fill_trace c res acc
                     | _ => acc
                     end in
-                execute' fuel s' otrace acc' (k op)
+                execute' fuel s' oscript acc' (k op)
         | Client__Send ss es =>
           fun k =>
-            '(orx, ot') <- match otrace with
+            '(orx, ot') <- match oscript with
                           | Some [] => ret (None, Some [])
-                          | Some (sc :: tr') =>
-                            ret (Some $ snd $ fst sc, Some tr')
+                          | Some (sc :: script') =>
+                            ret (Some $ sc, Some script')
                           | None =>
                             rx <- arbitraryRequest ss acc;;
                             ret (Some rx, None)
@@ -188,7 +168,7 @@ Fixpoint execute' {R} (fuel : nat) (s : conn_state) (otrace : option traceT)
     end
   end.
 
-Definition execute {R} (m : itree tE R) (otrace : option traceT)
+Definition execute {R} (otrace : option scriptT) (m : itree tE R)
   : IO (bool * traceT) :=
   (* prerr_endline "<<<<< begin test >>>>>";; *)
   '(b, s, t') <- execute' bigNumber [] otrace [] m;;
@@ -196,46 +176,15 @@ Definition execute {R} (m : itree tE R) (otrace : option traceT)
   fold_left (fun m fd => OUnix.close fd;; m) (map (fst ∘ snd) s) (ret tt);;
   ret (b, t').
 
-Fixpoint shrink_list {A} (l : list A) : list (list A) :=
-  match l with
-  | [] => []
-  | a :: l' => let sl' := shrink_list l' in
-             l' :: cons a <$> sl'
-  end.
+Definition single_test {R} (otrace : option scriptT)
+  : itree smE R -> IO (bool * traceT) :=
+  execute otrace ∘ tester ∘ observer _ ∘ compose_switch tcp.
 
-Fixpoint repeat_list {A} (n : nat) (l : list A) : list A :=
-  match n with
-  | O => []
-  | S n' => l ++ repeat_list n' l
-  end.
+Definition first_exec {R} : itree smE R -> IO (bool * traceT) :=
+  single_test None.
 
-Definition shrink_execute' {R} (m : itree tE R) (trace : traceT)
-  : IO (option traceT) :=
-  prerr_endline "<<<<< begin shrinking >>>>>";;
-  prerr_endline (to_string trace);;
-  IO.fix_io
-    (fun shrink_rec ts =>
-       match ts with
-       | [] => ret None
-       | t :: ts' =>
-         '(b, t') <- execute m (Some t);;
-         if (b : bool) ||| (length trace <=? length t')
-         then
-           prerr_endline "<<<<< accepting trace >>>>>";;
-           prerr_endline (to_string t');;
-           shrink_rec ts'
-         else
-           prerr_endline "<<<<< rejecting trace >>>>>";;
-           prerr_endline (to_string t');;
-           prerr_endline "<<<<<<< end shrinking >>>>>";;
-           ret (Some t')
-       end) (repeat_list 20 $ shrink_list trace).
+Definition then_exec {R} (m : itree smE R) (init : scriptT) : IO (bool * traceT) :=
+  single_test (Some init) m.
 
-Definition shrink_execute {R} (m : itree tE R) : IO bool :=
-  '(b, t) <- execute m None;;
-  if b : bool
-  then ret true
-  else IO.while_loop (shrink_execute' m) t;; ret false.
-
-Definition test {R} : itree smE R -> IO bool :=
-  shrink_execute ∘ tester ∘ observer _ ∘ compose_switch tcp.
+Definition test {R} (m : itree smE R) : IO bool :=
+  shrink_execute (first_exec m) (then_exec m).

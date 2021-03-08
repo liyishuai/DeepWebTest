@@ -9,4 +9,5 @@ theories/Net.v
 theories/Observe.v
 theories/Tester.v
 theories/NetUnix.v
+theories/Shrink.v
 theories/Execute.v
