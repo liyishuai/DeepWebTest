@@ -26,6 +26,7 @@ Open Scope list_scope.
 
 Section IShrink.
 
+(** ** Scripting Language *)
 Variable expT               : Type -> Type.
 Variable requestT responseT : (Set -> Type) -> Type.
 Context `{Shrink (requestT expT)}.
@@ -36,15 +37,6 @@ Definition payloadT exp_ : Type := requestT id + responseT exp_.
 Variable connT      : Type.
 Variable Conn__Server : connT.
 Context `{Serialize connT}.
-
-Record packetT {exp_} :=
-  Packet {
-      packet__src : connT;
-      packet__dst : connT;
-      packet__payload : payloadT exp_
-    }.
-Arguments packetT : clear implicits.
-Arguments Packet {_}.
 
 Definition varT := nat.
 
@@ -81,6 +73,17 @@ Definition shrink_execute (first_exec : IO (bool * traceT))
   then ret true
   else IO.while_loop (shrink_execute' then_exec) (map (snd ∘ fst) tr);;
        ret false.
+
+(** ** Testing Language *)
+
+Record packetT {exp_} :=
+  Packet {
+      packet__src : connT;
+      packet__dst : connT;
+      packet__payload : payloadT exp_
+    }.
+Arguments packetT : clear implicits.
+Arguments Packet {_}.
 
 Variable gen_state : Type.
 
