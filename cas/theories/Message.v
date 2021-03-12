@@ -27,28 +27,8 @@ Variant responseT {exp_} :=
 | Response__PreconditionFailed.
 Arguments responseT : clear implicits.
 
-Program Instance Decidable_eq_requestT (x y : requestT id) : Decidable (x = y) := {
-  Decidable_witness :=
-    match x, y with
-    | Request__GET xk xt, Request__GET yk yt =>
-      let xt' : tag := xt in
-      let yt' : tag := yt in
-      (xk, xt') = (yk, yt')?
-    | Request__CAS xk xt xv, Request__CAS yk yt yv =>
-      let xt' : tag := xt in
-      let yt' : tag := yt in
-      (xk, xt', xv) = (yk, yt', yv)?
-    | _, _ => false
-    end }.
-Solve Obligations with intros; intuition; discriminate.
-Next Obligation.
-  destruct x, y; intuition; try discriminate; f_equal;
-    try apply andb_true_iff in H; try apply eqb_eq; intuition;
-      try apply andb_true_iff; try inversion H; intuition;
-        try apply andb_true_iff in H0; try apply eqb_eq; intuition;
-          try apply eqb_eq; intuition.
-  apply andb_true_iff; intuition; apply eqb_eq; reflexivity.
-Qed.
+Instance Dec_Eq__requestT : Dec_Eq (requestT id).
+Proof. dec_eq. Defined.
 
 Instance Serialize__requestT : Serialize (requestT id) :=
   fun m =>

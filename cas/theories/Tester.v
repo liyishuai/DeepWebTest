@@ -48,7 +48,7 @@ Definition unify {T} (e : exp T) (v : T) (s : exp_state) : string + exp_state :=
 
 Variant testerE : Type -> Type :=
   Tester__Recv : testerE (packetT id)
-| Tester__Send : server_state exp -> exp_state -> testerE (packetT id).
+| Tester__Send : server_state exp -> testerE (packetT id).
 
 Class Is__stE E `{failureE -< E} `{decideE -< E} `{testerE -< E}.
 Notation stE := (failureE +' decideE +' testerE).
@@ -89,7 +89,7 @@ Definition instantiate_observe {E R} `{Is__stE E} (e : observeE R)
   : Monads.stateT exp_state (itree E) R :=
   fun s =>
     match e with
-    | Observe__ToServer st => pkt <- embed Tester__Send st s;;
+    | Observe__ToServer st => pkt <- embed Tester__Send st;;
                            Ret (s, pkt)
     | Observe__FromServer  => pkt <- trigger Tester__Recv;;
                            Ret (s, pkt)
@@ -118,7 +118,7 @@ CoFixpoint match_event {T R} (e0 : testerE R) (r : R) (m : itree stE T)
     match e with
     | (||oe) =>
       match oe in testerE Y, e0 in testerE R return (Y -> _) -> R -> _ with
-      | Tester__Send _ _, Tester__Send _ _
+      | Tester__Send _  , Tester__Send _
       | Tester__Recv    , Tester__Recv => id
       | _, _ => fun _ _ => throw "Unexpected event"
       end k r
@@ -129,22 +129,18 @@ CoFixpoint match_event {T R} (e0 : testerE R) (r : R) (m : itree stE T)
 Definition match_observe {T R} (e : testerE T) (r : T) (l : list (itree stE R))
   : list (itree stE R) := map (match_event e r) l.
 
-Variant clientE : Type -> Type :=
-| Client__Recv : clientE (option (packetT id))
-| Client__Send : server_state exp -> exp_state ->
-               clientE (option (packetT id)).
+Notation clientE    := (clientE    requestT responseT connT (server_state exp)).
+Notation Client__Recv := (Client__Recv requestT responseT connT (server_state exp)).
+Notation Client__Send := (Client__Send requestT responseT connT (server_state exp)).
+Notation tE := (failureE +' clientE +' nondetE).
 
-Class Is__tE E `{failureE -< E} `{nondetE -< E} `{clientE -< E}.
-Notation tE := (failureE +' nondetE +' clientE).
-Instance tE_Is__tE : Is__tE tE. Defined.
-
-CoFixpoint backtrack' {E R} `{Is__tE E} (others : list (itree stE R))
-           (m : itree stE R) : itree E R :=
+CoFixpoint backtrack' {R} (others : list (itree stE R))
+           (m : itree stE R) : itree tE R :=
   match observe m with
   | RetF r => Ret r
   | TauF m' => Tau (backtrack' others m')
   | VisF e k =>
-    let catch (err : string) : itree E R :=
+    let catch (err : string) : itree tE R :=
         match others with
         | [] => throw err
         | other :: others' =>
@@ -165,7 +161,7 @@ CoFixpoint backtrack' {E R} `{Is__tE E} (others : list (itree stE R))
           | other :: others' => Tau (backtrack' (others' ++ [m]) other)
           end in
       match te in testerE Y return (Y -> _) -> _ with
-      | Tester__Send st es =>
+      | Tester__Send st =>
         fun k => op1 <- trigger Client__Recv;;
               match op1 with
               | Some p1 =>
@@ -175,10 +171,10 @@ CoFixpoint backtrack' {E R} `{Is__tE E} (others : list (itree stE R))
                   Tau (backtrack' others' other)
                 end
               | None =>
-                opkt <- embed Client__Send st es;;
+                opkt <- embed Client__Send st;;
                 match opkt with
                 | Some pkt =>
-                  Tau (backtrack' (match_observe (Tester__Send st es)
+                  Tau (backtrack' (match_observe (Tester__Send st)
                                                  pkt others) (k pkt))
                 | None => postpone
                 end
@@ -194,8 +190,8 @@ CoFixpoint backtrack' {E R} `{Is__tE E} (others : list (itree stE R))
     end
   end.
 
-Definition backtrack {E R} `{Is__tE E} : itree stE R -> itree E R :=
+Definition backtrack {R} : itree stE R -> itree tE R :=
   backtrack' [].
 
-Definition tester {E R} `{Is__tE E} : itree oE R -> itree E R :=
+Definition tester {R} : itree oE R -> itree tE R :=
   backtrack ∘ unifier.

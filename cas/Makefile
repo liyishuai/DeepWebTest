@@ -1,6 +1,7 @@
 COQMAKEFILE?=Makefile.coq
 
 all: $(COQMAKEFILE)
+	$(MAKE) -C ../shrink
 	@+$(MAKE) -f $(COQMAKEFILE) all
 	$(MAKE) -C extract
 

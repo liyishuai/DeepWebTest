@@ -6,6 +6,6 @@ From Extract Require Export
 Definition run_test : io_unit :=
   IO.unsafe_run
     (ORandom.self_init tt;;
-     multi_test (@test void cas_smi)).
+     multi_test test_cas).
 
 Separate Extraction run_test.

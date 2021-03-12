@@ -16,8 +16,6 @@ Variant unifyE : Type -> Type :=
 | Unify__Match    : exp bool -> bool -> unifyE unit
 | Unify__Response : responseT exp -> responseT id -> unifyE unit.
 
-Notation failureE := (exceptE string).
-
 Class Is__oE E `{failureE -< E}
       `{decideE -< E} `{unifyE -< E} `{observeE -< E}.
 Notation oE := (failureE +' decideE +' unifyE +' observeE).
@@ -31,8 +29,11 @@ Definition wrap_response (r : responseT id) : responseT exp :=
   | Response__PreconditionFailed => Response__PreconditionFailed
   end.
 
-Definition wrap_payload : payloadT id -> payloadT exp :=
-  fmap wrap_response.
+Definition wrap_payload (p : payloadT id) : payloadT exp :=
+  match p with
+  | inl req => inl req
+  | inr res => inr $ wrap_response res
+  end.
 
 Definition wrap_packet (pkt : packetT id) : packetT exp :=
   let 'Packet s d p := pkt in
@@ -45,12 +46,13 @@ Definition dualize {E R} `{Is__oE E} (e : netE R) : itree E R :=
     '(Packet s d p) <- trigger Observe__FromServer;;
     if (s, d) = (s0, d0)?
     then
-      match p0, p with
-      | inl r0, inl r =>
+      match p0, p : payloadT id with
+      | inl r0', inl r' =>
+        let (r0, r) := (r0', r') : requestT id * requestT id in (* wat *)
         if r = r0? then ret tt
         else throw $ "Expect request " ++ to_string r0
                   ++ ", but observed " ++ to_string r
-      | inr r0, inr r => embed Unify__Response r0 r
+      | inr r0, inr r => trigger (Unify__Response r0 r)
       | inl _ , inr _ => throw "Expect request but observed response"
       | inr _ , inl _ => throw "Expect response but observed request"
       end

@@ -1,3 +1,5 @@
+From IShrink Require Export
+     IShrink.
 From CAS Require Export
      App.
 From ITree Require Export
@@ -19,34 +21,26 @@ Instance Serialize__connT : Serialize connT :=
     | Conn__Server   =>  Atom "Server"
     end%sexp.
 
-Program Instance Decidable_eq__connT (x y : connT) : Decidable (x = y) := {
-  Decidable_witness :=
-    match x, y with
-    | Conn__Server  , Conn__Server => true
-    | Conn__Client x, Conn__Client y => x = y?
-    | _, _ => false
-    end }.
-Solve Obligations with split; intuition; discriminate.
-Next Obligation.
-  intuition.
-  - destruct x, y; f_equal; try apply Decidable_spec; intuition.
-  - subst.
-    destruct y; try apply Nat.eqb_eq; intuition.
-Qed.
+Instance Dec_Eq__connT : Dec_Eq connT.
+Proof. dec_eq. Defined.
 
-Definition payloadT exp_ : Type := requestT id + responseT exp_.
-
-Record packetT {exp_} :=
-  Packet {
-      packet__src : connT;
-      packet__dst : connT;
-      packet__payload : payloadT exp_
-    }.
 Arguments packetT : clear implicits.
-Arguments Packet {_}.
+Notation payloadT := (payloadT requestT responseT).
+Notation  packetT := (packetT  requestT responseT connT).
+Arguments Packet        {_ _ _ _}.
+Arguments packet__src     {_ _ _ _}.
+Arguments packet__dst     {_ _ _ _}.
+Arguments packet__payload {_ _ _ _}.
 
 Polymorphic Instance Serialize_id {A} {Serialize_A : Serialize A} : Serialize (id A) :=
   Serialize_A.
+
+Instance Serialize__payloadT : Serialize (payloadT id).
+Proof.                          (* wat *)
+  apply Serialize_sum.
+  - apply Serialize__requestT.
+  - apply Serialize__responseT.
+Defined.
 
 Instance Serialize__packetT : Serialize (packetT id) :=
   fun pkt =>
@@ -66,7 +60,7 @@ Proof.
   destruct (f a); simpl; intuition.
 Qed.
 
-Program Fixpoint nodup {A} `{forall x y : A, Decidable (x = y)}
+Program Fixpoint nodup {A} `{Dec_Eq A}
         (l : list A) {measure (length l)} : list A :=
   match l with
   | [] => []

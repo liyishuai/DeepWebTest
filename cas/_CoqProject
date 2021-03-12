@@ -1,4 +1,5 @@
 -Q theories CAS
+-Q ../shrink IShrink
 -arg -w -arg -solve_obligation_error
 
 theories/Common.v
@@ -9,5 +10,4 @@ theories/Net.v
 theories/Observe.v
 theories/Tester.v
 theories/NetUnix.v
-theories/Shrink.v
 theories/Execute.v

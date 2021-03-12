@@ -1,4 +1,5 @@
 -Q ../theories CAS
+-Q ../../shrink IShrink
 -Q . Extract
 -arg -w -arg -solve_obligation_error
 

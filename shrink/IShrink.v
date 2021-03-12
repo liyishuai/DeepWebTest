@@ -109,6 +109,9 @@ Fixpoint execute' {R} (fuel : nat) (s : conn_state)
   match fuel with
   | O => ret (true, s, acc)
   | S fuel =>
+    prerr_endline "Hi";;
+    prerr_endline (to_string fuel);;
+    prerr_endline "Wat";;
     match observe m with
     | RetF _ => ret (true, s, acc)
     | TauF m' => execute' fuel s oscript acc m'
